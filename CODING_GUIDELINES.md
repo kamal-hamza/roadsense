@@ -56,10 +56,10 @@ packages][local-packages] for modularity. We use that to give every layer its ow
 
 | Layer | Module / location | .NET equivalent | Contains | May import |
 |---|---|---|---|---|
-| **Domain** | `Packages/RoadSenseKit/Sources/Domain` | `RoadSense.Domain` | Entities, value objects, domain errors, pure business rules | `Foundation` only |
-| **Application** | `.../Sources/Application` | `RoadSense.Application` | Use cases, **ports** (protocols for repositories/services), DTOs | `Domain`, `Foundation` |
-| **Infrastructure** | `.../Sources/Infrastructure` | `RoadSense.Infrastructure` | Port implementations: SwiftData, `URLSession`, Core Location, Core Motion, Keychain | `Application`, `Domain`, any Apple framework |
-| **Presentation** | `.../Sources/Presentation` | `RoadSense.Web` / UI project | SwiftUI views, `@Observable` view models, navigation, preview fakes | `Application`, `Domain`, SwiftUI, MapKit, etc. |
+| **Domain** | `Packages/RoadSenseKit/Sources/Domain` | `RoadSense.Domain` | Entities, value objects, domain errors, pure business rules | `Foundation`, `SensorCore` |
+| **Application** | `.../Sources/Application` | `RoadSense.Application` | Use cases, **ports** (protocols for repositories/services), DTOs | `Domain`, `Foundation`, `SensorCore`, `SensorRecording` |
+| **Infrastructure** | `.../Sources/Infrastructure` | `RoadSense.Infrastructure` | Port implementations: SwiftData, `URLSession`, Keychain | `Application`, `Domain`, Apple frameworks (not sensors; see §1.7) |
+| **Presentation** | `.../Sources/Presentation` | `RoadSense.Web` / UI project | SwiftUI views, `@Observable` view models, navigation, preview fakes | `Application`, `Domain`, `SensorCore`, `SensorRecording`, SwiftUI, Charts, MapKit |
 | **Composition root** | `RoadSense/App` (app target) | `Program.cs` / DI registration | `@main` app, `AppContainer` wiring concrete types | Everything |
 
 "Backend" here means the non-UI layers inside the app (Domain, Application,
@@ -72,17 +72,21 @@ it gets its own folder and the same four layers.
   Infrastructure → Application → Domain. Domain depends on nothing.
 - **Presentation MUST NOT import Infrastructure**, and Infrastructure MUST NOT
   import Presentation. They only meet in the composition root.
-- **Domain and Application MUST import only `Foundation`** (and the layers below
-  them). No SwiftUI, UIKit, SwiftData, Core Location, Combine, etc.
-- **Concrete Infrastructure types are only created in `RoadSense/App/AppContainer.swift`.**
+- **Domain and Application MUST import only `Foundation`**, the layers below them,
+  and the pure sensor modules (`SensorCore`, `SensorRecording`). No SwiftUI, UIKit,
+  SwiftData, Core Location, Combine, etc.
+- **Concrete Infrastructure and `SensorDevice` types are only created in
+  `RoadSense/App/AppContainer.swift`.**
 
 How it's enforced:
 
-1. `Packages/RoadSenseKit/Package.swift` declares target dependencies, so an
-   illegal `import` between layers fails to compile.
-2. SwiftLint custom rules in `.swiftlint.yml` block Apple framework imports in
-   Domain/Application and persistence frameworks in Presentation. The compiler
-   can't catch those.
+1. Each package's `Package.swift` declares target dependencies, so an illegal
+   `import` between modules fails to compile.
+2. SwiftLint custom rules in `.swiftlint.yml` catch imports the compiler allows:
+   - Apple frameworks in Domain/Application
+   - persistence frameworks in Presentation
+   - anything but Foundation in the pure sensor modules
+   - `SensorDevice`/Core Motion/Core Location anywhere in RoadSenseKit
 
 **Never "fix" a layering error by adding a dependency in `Package.swift`.** Move the
 code to the right layer, or add a port.
@@ -97,7 +101,7 @@ code to the right layer, or add a port.
 | `IServiceCollection` DI | **Manual constructor injection.** `AppContainer` builds `AppDependencies`. No DI framework, no service locators, no singletons. |
 | EF Core entities | SwiftData `@Model` classes live **only** in Infrastructure, mapped to Domain structs at the boundary |
 | DTO / ViewModel | Application DTOs (`struct`) for use-case I/O; Presentation view models (`@Observable`) for UI state |
-| xUnit test project per layer | Test target per layer in `Packages/RoadSenseKit/Tests/` |
+| xUnit test project per layer | Test target per module in `Packages/*/Tests/` |
 
 The example "Trips" feature shows the whole flow:
 
@@ -153,6 +157,40 @@ RoadSense/
 - Presentation exposes only `RootView` and `AppDependencies`. Views and view
   models stay `internal`, and tests reach them with `@testable import`.
 - **MUST** mark classes `final` unless they're designed for subclassing.
+
+### 1.7 The sensor package (`Packages/RoadSenseSensors`)
+
+Sensor work is a **self-contained package with its own internal layers**. Think of
+it as a separate .NET solution that RoadSense references. It knows nothing about
+trips, storage, or UI, so it could be reused by another app.
+
+```
+SensorDevice ──► SensorRecording ──► SensorCore ◄── DriveSimulation
+```
+
+| Module | Like | Contains | May import |
+|---|---|---|---|
+| **SensorCore** | Domain | `SensorReading` and samples, `VehicleFrameEstimator`, event detectors, `DetectionPipeline`, `TripStateMachine`, `TripOdometer`, `DrivingEvent` | `Foundation` only |
+| **SensorRecording** | Application | `SensorRecorder` (recording session service); ports `SensorSource`, `SensorLogStore` | `SensorCore`, `Foundation` |
+| **SensorDevice** | Infrastructure | `LiveSensorSource` (Core Motion + Core Location + background session), `ReplaySensorSource`, `SimulatedSensorSource`, `FileSensorLogStore` | Anything above, Apple sensor frameworks |
+| **DriveSimulation** | Test tooling | `SyntheticDrive`: physically consistent sensor data for any phone placement | `SensorCore` |
+
+Rules:
+
+- **MUST NOT** import anything from RoadSenseKit. The dependency goes one way:
+  RoadSenseKit → RoadSenseSensors.
+- SensorCore, SensorRecording, and DriveSimulation **MUST** stay pure, so the whole
+  package builds for macOS and `just test-sensors` runs on the Mac in under a
+  second. iOS-only code in SensorDevice is wrapped in `#if os(iOS)`.
+- Readings cross module boundaries only as SensorCore value types. Convert Apple
+  objects (`CMDeviceMotion`, `CLLocation`) inside SensorDevice's callbacks.
+- RoadSense-specific meaning is added in RoadSenseKit. `RecordTripUseCase` turns a
+  `RecordingSummary` into a `Trip`.
+- New algorithm behavior **MUST** come with tests in `SensorCoreTests`, using
+  `SyntheticDrive` (known physics, every `PhoneOrientation.testPlacements`) or
+  replayed real logs.
+
+Design background (Apple APIs, thresholds, background limits): `docs/SENSORS.md`.
 
 ---
 
@@ -343,9 +381,11 @@ functions run on the **caller's** actor unless marked `@concurrent`.
 Uses [Swift Testing][swift-testing] (`import Testing`, `@Test`, `#expect`,
 `#require`). XCTest is only for UI and performance tests.
 
-- **Every layer has its own test target**: `DomainTests`, `ApplicationTests`,
-  `InfrastructureTests`, `PresentationTests`, plus `RoadSenseTests` for the
-  composition root. `just test` runs them all.
+- **Every module has its own test target**: `DomainTests`, `ApplicationTests`,
+  `InfrastructureTests`, `PresentationTests`, `SensorCoreTests`,
+  `SensorRecordingTests`, `SensorDeviceTests`, plus `RoadSenseTests` for the
+  composition root. `just test` runs them all in the simulator, and
+  `just test-sensors` runs the sensor package's tests on the Mac.
 - What to test where:
   - **Domain:** invariants and business rules. Pure and fast, with no fakes needed.
   - **Application:** use-case logic with **stub/fake ports** written in the test file.
@@ -433,7 +473,7 @@ simply, the design may be wrong.
 ## 10. Checklist before finishing
 
 - [ ] Code is in the right layer, and no new `Package.swift` dependency was added to work around a layering error.
-- [ ] Domain and Application import only `Foundation`.
+- [ ] Domain and Application import only `Foundation` and pure modules. RoadSenseSensors doesn't import RoadSenseKit.
 - [ ] New infrastructure is behind a port and wired in `AppContainer` only.
 - [ ] `@Observable` + `@State`/`@Environment`/`@Bindable` used. No `ObservableObject`.
 - [ ] Zero compiler warnings. No `@unchecked Sendable` or `nonisolated(unsafe)` without justification.
