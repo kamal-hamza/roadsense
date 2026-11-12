@@ -1,0 +1,51 @@
+included:
+  - RoadSense
+  - RoadSenseTests
+  - Packages/RoadSenseKit/Sources
+  - Packages/RoadSenseKit/Tests
+  - Packages/RoadSenseKit/Package.swift
+excluded:
+  - build
+  - DerivedData
+  - Packages/RoadSenseKit/.build
+
+# SwiftFormat owns formatting; avoid fighting it.
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+
+opt_in_rules:
+  - empty_count
+  - first_where
+  - sorted_first_last
+  - toggle_bool
+  - unused_optional_binding
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+
+# -----------------------------------------------------------------------------
+# Architecture guards (see CODING_GUIDELINES.md §1).
+# Module dependencies are enforced by Package.swift; these rules catch Apple
+# framework imports that the compiler would happily allow.
+# -----------------------------------------------------------------------------
+custom_rules:
+  core_layers_foundation_only:
+    name: "Domain/Application import Foundation only"
+    included: ".*/Sources/(Domain|Application)/.*\\.swift$"
+    regex: "^\\s*(@testable\\s+)?import\\s+(?!(Foundation|Domain)\\b)\\w+"
+    message: >-
+      Domain and Application must stay framework-free. Define a port (protocol)
+      in Application and implement it in Infrastructure instead.
+    severity: error
+  presentation_no_persistence:
+    name: "No persistence frameworks in Presentation"
+    included: ".*/Sources/Presentation/.*\\.swift$"
+    regex: "^\\s*import\\s+(SwiftData|CoreData|CoreMotion|Network)\\b"
+    message: >-
+      Presentation talks to use cases, not storage or system services.
+      Put this behind a port in Application and implement it in Infrastructure.
+    severity: error

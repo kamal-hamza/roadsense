@@ -1,0 +1,8 @@
+# Tool versions only. Run `mise install` once; commands live in the justfile.
+# Xcode itself is not managed by mise. Install it from the App Store.
+
+[tools]
+just = "1.58.0"
+swiftformat = { version = "0.64.6", no_app = "true", rename_exe = "swiftformat" }
+swiftlint = "0.65.1"
+xcbeautify = "3.2.1"

@@ -1,0 +1,6 @@
+--swiftversion 6.2
+--exclude build,DerivedData,**/.build,**/.swiftpm
+--indent 4
+--maxwidth 120
+--wraparguments before-first
+--wrapcollections before-first
