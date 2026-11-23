@@ -208,6 +208,13 @@ private actor MemoryTripLogStore: TripLogStore {
     func unfinishedLog() async throws -> TripLog? {
         unfinished
     }
+
+    func finishedLogs() async throws -> [TripLog] {
+        []
+    }
+
+    func saveFinished(_: TripLog) async throws {}
+    func deleteFinished(id _: TripLog.ID) async throws {}
 }
 
 private actor MemoryTripRepository: TripRepository {

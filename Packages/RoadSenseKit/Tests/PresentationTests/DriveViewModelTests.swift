@@ -121,6 +121,13 @@ private struct NoTripLogStore: TripLogStore {
     func unfinishedLog() async throws -> TripLog? {
         nil
     }
+
+    func finishedLogs() async throws -> [TripLog] {
+        []
+    }
+
+    func saveFinished(_: TripLog) async throws {}
+    func deleteFinished(id _: TripLog.ID) async throws {}
 }
 
 private struct SilentAlerting: DriveAlerting {

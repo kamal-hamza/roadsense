@@ -102,6 +102,13 @@ struct PreviewTripLogStore: TripLogStore {
     func unfinishedLog() async throws -> TripLog? {
         nil
     }
+
+    func finishedLogs() async throws -> [TripLog] {
+        []
+    }
+
+    func saveFinished(_: TripLog) async throws {}
+    func deleteFinished(id _: TripLog.ID) async throws {}
 }
 
 /// Alerts that stay silent in previews.
