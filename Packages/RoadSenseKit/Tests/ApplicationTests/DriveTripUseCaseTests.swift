@@ -80,6 +80,7 @@ struct DriveTripUseCaseTests {
             return
         }
         #expect(log.endReason == .arrived)
+        // Permission is asked alongside the drive, so it's done long before the drive ends.
         #expect(await alerts.prepared)
         #expect(await alerts.warnings.flatMap { $0.hotspots.map(\.id) } == plan.hotspots.map(\.id))
         let passes = log.entries.filter {

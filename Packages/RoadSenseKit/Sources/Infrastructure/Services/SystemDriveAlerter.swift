@@ -14,13 +14,17 @@ import UserNotifications
 /// Warns with speech (vibration only during a phone call) and a notification when the app isn't on screen.
 public struct SystemDriveAlerter: DriveAlerting {
     private let output: AlertOutput
+    private let asksForNotificationPermission: Bool
 
+    /// - Parameter asksForNotificationPermission: Pass `false` only for automated runs that can't answer the prompt.
     @MainActor
-    public init() {
+    public init(asksForNotificationPermission: Bool = true) {
         output = AlertOutput()
+        self.asksForNotificationPermission = asksForNotificationPermission
     }
 
     public func prepare() async {
+        guard asksForNotificationPermission else { return }
         await output.requestNotificationPermission()
     }
 

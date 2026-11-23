@@ -18,6 +18,7 @@ public actor DriveTripUseCase {
         var lastRerouteAttempt: Date?
         var rerouteTask: Task<Void, Never>?
         var loopTask: Task<Void, Never>?
+        var prepareTask: Task<Void, Never>?
         let continuation: AsyncStream<DriveState>.Continuation
     }
 
@@ -58,7 +59,6 @@ public actor DriveTripUseCase {
     /// Starts the drive and returns its state as it changes. The stream ends after `.ended`.
     public func start(_ plan: TripPlan) async throws -> AsyncStream<DriveState> {
         guard session == nil else { throw DriveError.alreadyDriving }
-        await alerting.prepare()
 
         let (states, continuation) = AsyncStream.makeStream(of: DriveState.self, bufferingPolicy: .bufferingNewest(8))
         // The route starts where the driver was when planning, which is close enough for privacy trimming.
@@ -70,6 +70,9 @@ public actor DriveTripUseCase {
             continuation: continuation,
         )
         try await tripLogStore.begin(log)
+        // Ask for alert permissions alongside the drive, not before it: sensors and speech don't depend on the answer.
+        let alerting = alerting
+        session?.prepareTask = Task { await alerting.prepare() }
 
         let options = SensorRecorder.Options(
             sensors: SensorConfiguration(plannedPath: plan.route.points),
@@ -180,6 +183,7 @@ public actor DriveTripUseCase {
         guard var finished = session else { return }
         session = nil
         finished.rerouteTask?.cancel()
+        finished.prepareTask?.cancel()
 
         let endCoordinate = coordinate ?? finished.controller.lastCoordinate
         // Sensor time can lag the wall clock slightly; never end before the start.
