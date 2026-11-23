@@ -6,9 +6,11 @@ import SwiftUI
 /// Shows driving routes to the chosen place and lets the driver pick one.
 struct RouteChoiceView: View {
     @State private var viewModel: RouteChoiceViewModel
+    private let onChoose: (Route) -> Void
 
-    init(destination: Place, planRoute: PlanRouteUseCase) {
+    init(destination: Place, planRoute: PlanRouteUseCase, onChoose: @escaping (Route) -> Void) {
         _viewModel = State(initialValue: RouteChoiceViewModel(destination: destination, planRoute: planRoute))
+        self.onChoose = onChoose
     }
 
     var body: some View {
@@ -17,7 +19,17 @@ struct RouteChoiceView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
-            .task { await viewModel.load() }
+            .task {
+                await viewModel.load()
+                #if DEBUG
+                    // Dev hook for automated screenshots: `-autoCheckHazards` continues with the best route.
+                    if ProcessInfo.processInfo.arguments.contains("-autoCheckHazards"),
+                       let route = viewModel.selectedRoute
+                    {
+                        onChoose(route)
+                    }
+                #endif
+            }
     }
 
     @ViewBuilder
@@ -44,6 +56,17 @@ struct RouteChoiceView: View {
                     .tint(.primary)
                 }
                 .listStyle(.plain)
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let route = viewModel.selectedRoute {
+                    Button { onChoose(route) } label: {
+                        Text("Check for Hazards")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .padding()
+                }
             }
         }
     }
@@ -75,12 +98,16 @@ private struct RouteMap: View {
 
 #Preview("Routes") {
     NavigationStack {
-        RouteChoiceView(destination: .previewDestination, planRoute: AppDependencies.preview.planRoute)
+        RouteChoiceView(destination: .previewDestination, planRoute: AppDependencies.preview.planRoute) { _ in }
     }
 }
 
 #Preview("No route") {
     NavigationStack {
-        RouteChoiceView(destination: .previewDestination, planRoute: AppDependencies.preview(routes: []).planRoute)
+        RouteChoiceView(
+            destination: .previewDestination,
+            planRoute: AppDependencies.preview(routes: []).planRoute,
+        ) { _ in
+        }
     }
 }

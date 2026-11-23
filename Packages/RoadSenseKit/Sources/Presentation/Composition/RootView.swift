@@ -20,6 +20,7 @@ public struct RootView: View {
                     checkAccess: dependencies.checkLocationAccess,
                     searchPlaces: dependencies.searchPlaces,
                     planRoute: dependencies.planRoute,
+                    findHotspots: dependencies.findRouteHotspots,
                 )
             }
             Tab("Trips", systemImage: "list.bullet", value: TabID.trips) {
