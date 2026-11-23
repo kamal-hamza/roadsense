@@ -32,6 +32,84 @@ struct PreviewSensorLogStore: SensorLogStore {
     }
 }
 
+/// Location that's always available at a fixed spot in Seattle, with a configurable permission.
+struct PreviewLocationServices: LocationServices {
+    var status: LocationAuthorization = .authorized
+
+    func authorization() async -> LocationAuthorization {
+        status
+    }
+
+    func requestAuthorization() async -> LocationAuthorization {
+        .authorized
+    }
+
+    func currentLocation() async throws -> LocationSample {
+        LocationSample(
+            timestamp: .now,
+            coordinate: Coordinate(latitude: 47.6062, longitude: -122.3321),
+            horizontalAccuracy: 5,
+            speed: nil,
+            speedAccuracy: nil,
+            course: nil,
+            courseAccuracy: nil,
+        )
+    }
+}
+
+struct PreviewPlaceSearch: PlaceSearching {
+    var places: [Place] = [.previewDestination]
+
+    func places(matching _: String, near _: Coordinate) async throws -> [Place] {
+        places
+    }
+}
+
+struct PreviewDirections: DirectionsProviding {
+    var routes: [Route] = Route.previewSamples
+
+    func routes(from _: Coordinate, to _: Place) async throws -> [Route] {
+        routes
+    }
+}
+
+extension Place {
+    nonisolated static let previewDestination = Place(
+        name: "Pike Place Market",
+        subtitle: "85 Pike St",
+        coordinate: Coordinate(latitude: 47.6097, longitude: -122.3422),
+    )
+}
+
+extension Route {
+    nonisolated static let previewSamples: [Route] = [
+        try? Route(
+            name: "1st Ave",
+            points: [
+                Coordinate(latitude: 47.6062, longitude: -122.3321),
+                Coordinate(latitude: 47.6040, longitude: -122.3355),
+                Coordinate(latitude: 47.6097, longitude: -122.3422),
+            ],
+            expectedTravelTime: 420,
+        ),
+        try? Route(
+            name: "3rd Ave",
+            points: [
+                Coordinate(latitude: 47.6062, longitude: -122.3321),
+                Coordinate(latitude: 47.6100, longitude: -122.3360),
+                Coordinate(latitude: 47.6097, longitude: -122.3422),
+            ],
+            expectedTravelTime: 540,
+        ),
+    ].compactMap(\.self)
+}
+
+extension CheckLocationAccessUseCase {
+    static func preview(_ status: LocationAuthorization) -> CheckLocationAccessUseCase {
+        CheckLocationAccessUseCase(locationServices: PreviewLocationServices(status: status))
+    }
+}
+
 extension DrivingEvent {
     static let previewSamples: [DrivingEvent] = [
         DrivingEvent(
@@ -75,11 +153,16 @@ extension Trip {
 }
 
 extension AppDependencies {
-    static let preview = preview(trips: Trip.previewSamples)
+    static let preview = preview()
 
-    static func preview(trips: [Trip]) -> AppDependencies {
+    static func preview(
+        trips: [Trip] = Trip.previewSamples,
+        authorization: LocationAuthorization = .authorized,
+        routes: [Route] = Route.previewSamples,
+    ) -> AppDependencies {
         let repository = PreviewTripRepository(trips: trips)
         let logStore = PreviewSensorLogStore()
+        let locationServices = PreviewLocationServices(status: authorization)
         return AppDependencies(
             listTrips: ListTripsUseCase(repository: repository),
             recordTrip: RecordTripUseCase(
@@ -87,6 +170,12 @@ extension AppDependencies {
                 tripRepository: repository,
             ),
             findSensorLog: FindSensorLogUseCase(store: logStore),
+            checkLocationAccess: CheckLocationAccessUseCase(locationServices: locationServices),
+            searchPlaces: SearchPlacesUseCase(locationServices: locationServices, placeSearch: PreviewPlaceSearch()),
+            planRoute: PlanRouteUseCase(
+                locationServices: locationServices,
+                directions: PreviewDirections(routes: routes),
+            ),
         )
     }
 }

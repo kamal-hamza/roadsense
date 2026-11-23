@@ -10,11 +10,15 @@ enum AppContainer {
         let tripRepository = FileTripRepository()
         let sensorLogStore = FileSensorLogStore()
         let recorder = SensorRecorder(sensorSource: makeSensorSource(), sensorLogStore: sensorLogStore)
+        let locationServices = makeLocationServices()
 
         return AppDependencies(
             listTrips: ListTripsUseCase(repository: tripRepository),
             recordTrip: RecordTripUseCase(recorder: recorder, tripRepository: tripRepository),
             findSensorLog: FindSensorLogUseCase(store: sensorLogStore),
+            checkLocationAccess: CheckLocationAccessUseCase(locationServices: locationServices),
+            searchPlaces: SearchPlacesUseCase(locationServices: locationServices, placeSearch: MapKitPlaceSearch()),
+            planRoute: PlanRouteUseCase(locationServices: locationServices, directions: MapKitDirections()),
         )
     }
 
@@ -24,6 +28,15 @@ enum AppContainer {
             SimulatedSensorSource()
         #else
             LiveSensorSource()
+        #endif
+    }
+
+    /// Real location on a phone; a fixed spot in the Simulator, which often has no location set.
+    private static func makeLocationServices() -> any LocationServices {
+        #if targetEnvironment(simulator)
+            SimulatedLocationServices()
+        #else
+            LiveLocationServices()
         #endif
     }
 }
