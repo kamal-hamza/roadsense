@@ -27,7 +27,6 @@ struct DriveView: View {
 
     var body: some View {
         content
-            .padding()
             .task { await viewModel.run() }
         #if os(iOS)
             // Keep the screen on while driving, like a navigation app; restore it when the drive screen goes.
@@ -50,6 +49,7 @@ struct DriveView: View {
                 Spacer()
                 controls(isMuted: update.isMuted)
             }
+            .padding()
         case let .ended(log):
             TripSummaryView(log: log, plan: viewModel.plan, submitFeedback: submitFeedback, onDone: onDone)
         case .failed:

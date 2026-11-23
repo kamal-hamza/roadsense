@@ -13,6 +13,7 @@ public struct AppDependencies: Sendable {
     public let recoverIncompleteTrip: RecoverIncompleteTripUseCase
     public let submitTripFeedback: SubmitTripFeedbackUseCase
     public let managePreferences: ManagePreferencesUseCase
+    public let uploadPendingEvents: UploadPendingEventsUseCase
 
     public init(
         listTrips: ListTripsUseCase,
@@ -26,6 +27,7 @@ public struct AppDependencies: Sendable {
         recoverIncompleteTrip: RecoverIncompleteTripUseCase,
         submitTripFeedback: SubmitTripFeedbackUseCase,
         managePreferences: ManagePreferencesUseCase,
+        uploadPendingEvents: UploadPendingEventsUseCase,
     ) {
         self.listTrips = listTrips
         self.recordTrip = recordTrip
@@ -38,5 +40,6 @@ public struct AppDependencies: Sendable {
         self.recoverIncompleteTrip = recoverIncompleteTrip
         self.submitTripFeedback = submitTripFeedback
         self.managePreferences = managePreferences
+        self.uploadPendingEvents = uploadPendingEvents
     }
 }

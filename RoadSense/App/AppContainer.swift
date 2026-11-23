@@ -37,6 +37,13 @@ enum AppContainer {
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: tripLogStore),
             submitTripFeedback: SubmitTripFeedbackUseCase(tripLogStore: tripLogStore),
             managePreferences: ManagePreferencesUseCase(preferences: preferences),
+            uploadPendingEvents: UploadPendingEventsUseCase(
+                tripLogStore: tripLogStore,
+                queue: FileUploadQueue(),
+                uploader: makeEventUploader(),
+                deviceIdentity: KeychainDeviceIdentityStore(),
+                preferences: preferences,
+            ),
         )
     }
 
@@ -51,12 +58,22 @@ enum AppContainer {
         #endif
     }
 
-    /// Demo hotspots until the Rust server exists (M6). `-hotspotServiceOffline` simulates no connection.
+    /// Demo hotspots until the Rust server exists (M6). `-backendOffline` simulates no connection.
     private static func makeHotspotService() -> any HotspotService {
+        DemoHotspotService(isOffline: isBackendOffline)
+    }
+
+    /// Demo uploads until the Rust server exists (M6). `-backendOffline` simulates no connection.
+    private static func makeEventUploader() -> any EventUploader {
+        DemoEventUploader(isOffline: isBackendOffline)
+    }
+
+    /// Debug-only switch that makes the demo backend act unreachable, to try the offline paths.
+    private static var isBackendOffline: Bool {
         #if DEBUG
-            DemoHotspotService(isOffline: ProcessInfo.processInfo.arguments.contains("-hotspotServiceOffline"))
+            ProcessInfo.processInfo.arguments.contains("-backendOffline")
         #else
-            DemoHotspotService()
+            false
         #endif
     }
 

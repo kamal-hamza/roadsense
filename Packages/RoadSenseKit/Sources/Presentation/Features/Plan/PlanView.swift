@@ -20,6 +20,8 @@ struct PlanView: View {
     @State private var access: LocationAccessViewModel
     @State private var path: [Step] = []
     @State private var activeDrive: ActiveDrive?
+    /// Bumped when a drive's summary is closed, which kicks off an upload.
+    @State private var finishedDrives = 0
     @Environment(\.scenePhase) private var scenePhase
 
     private let searchPlaces: SearchPlacesUseCase
@@ -27,6 +29,7 @@ struct PlanView: View {
     private let findHotspots: FindRouteHotspotsUseCase
     private let driveTrip: DriveTripUseCase
     private let submitFeedback: SubmitTripFeedbackUseCase
+    private let uploadPendingEvents: UploadPendingEventsUseCase
 
     init(
         checkAccess: CheckLocationAccessUseCase,
@@ -35,6 +38,7 @@ struct PlanView: View {
         findHotspots: FindRouteHotspotsUseCase,
         driveTrip: DriveTripUseCase,
         submitFeedback: SubmitTripFeedbackUseCase,
+        uploadPendingEvents: UploadPendingEventsUseCase,
     ) {
         _access = State(initialValue: LocationAccessViewModel(checkAccess: checkAccess))
         self.searchPlaces = searchPlaces
@@ -42,6 +46,7 @@ struct PlanView: View {
         self.findHotspots = findHotspots
         self.driveTrip = driveTrip
         self.submitFeedback = submitFeedback
+        self.uploadPendingEvents = uploadPendingEvents
     }
 
     var body: some View {
@@ -61,7 +66,13 @@ struct PlanView: View {
                 activeDrive = nil
                 // Back to the search screen, ready for the next trip.
                 path.removeAll()
+                finishedDrives += 1
             }
+        }
+        // Send the finished drive (with any feedback). Failures stay queued and retry at the next launch.
+        .task(id: finishedDrives) {
+            guard finishedDrives > 0 else { return }
+            await BackgroundWork.run("Uploading events") { try await uploadPendingEvents() }
         }
         // Re-check on launch and whenever the app comes back, e.g. from Settings.
         .task(id: scenePhase) {
@@ -93,6 +104,7 @@ struct PlanView: View {
         findHotspots: AppDependencies.preview.findRouteHotspots,
         driveTrip: AppDependencies.preview.driveTrip,
         submitFeedback: AppDependencies.preview.submitTripFeedback,
+        uploadPendingEvents: AppDependencies.preview.uploadPendingEvents,
     )
 }
 
@@ -104,5 +116,6 @@ struct PlanView: View {
         findHotspots: AppDependencies.preview.findRouteHotspots,
         driveTrip: AppDependencies.preview.driveTrip,
         submitFeedback: AppDependencies.preview.submitTripFeedback,
+        uploadPendingEvents: AppDependencies.preview.uploadPendingEvents,
     )
 }

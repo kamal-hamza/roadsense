@@ -117,6 +117,31 @@ struct PreviewDriveAlerting: DriveAlerting {
     func announce(_: DriveWarning) async {}
 }
 
+/// An upload queue that's always empty.
+struct PreviewUploadQueue: UploadQueue {
+    func enqueue(_: UploadBatch) async throws {}
+    func pending() async throws -> [UploadBatch] {
+        []
+    }
+
+    func remove(id _: UploadBatch.ID) async throws {}
+}
+
+/// An uploader that accepts everything and sends nothing.
+struct PreviewEventUploader: EventUploader {
+    func upload(_: UploadBatch) async -> UploadResult {
+        .accepted
+    }
+
+    func registerDevice(_: DeviceID) async throws {}
+}
+
+struct PreviewDeviceIdentity: DeviceIdentityStore {
+    func deviceID() async throws -> DeviceID {
+        DeviceID(rawValue: UUID())
+    }
+}
+
 /// Settings kept in memory for previews.
 actor PreviewPreferences: UserPreferences {
     private var stored = AppPreferences()
@@ -290,6 +315,13 @@ extension AppDependencies {
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: PreviewTripLogStore()),
             submitTripFeedback: SubmitTripFeedbackUseCase(tripLogStore: PreviewTripLogStore()),
             managePreferences: ManagePreferencesUseCase(preferences: preferences),
+            uploadPendingEvents: UploadPendingEventsUseCase(
+                tripLogStore: PreviewTripLogStore(),
+                queue: PreviewUploadQueue(),
+                uploader: PreviewEventUploader(),
+                deviceIdentity: PreviewDeviceIdentity(),
+                preferences: preferences,
+            ),
         )
     }
 }
