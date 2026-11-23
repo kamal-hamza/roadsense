@@ -73,6 +73,35 @@ struct PreviewDirections: DirectionsProviding {
     }
 }
 
+/// Hotspots spread along whatever route is asked for, or an unreachable backend.
+struct PreviewHotspotService: HotspotService {
+    var isAvailable = true
+
+    func hotspots(along route: Route) async throws -> [RouteHotspot] {
+        guard isAvailable else { throw HotspotServiceError.unavailable }
+        let kinds: [HotspotKind] = [.sharpCurve, .suddenStop]
+        return [0.35, 0.75].enumerated().map { index, fraction in
+            let location = route.location(atDistance: route.length * fraction)
+            let hotspot = Hotspot(
+                id: UUID(),
+                kind: kinds[index],
+                coordinate: location.coordinate,
+                bearing: location.bearing,
+                driverCount: 6 + index * 5,
+            )
+            return RouteHotspot(hotspot: hotspot, distanceAlongRoute: route.length * fraction)
+        }
+    }
+}
+
+/// A hotspot cache with nothing saved.
+struct PreviewHotspotCache: HotspotCache {
+    func save(_: CachedHotspotArea) async throws {}
+    func areas() async throws -> [CachedHotspotArea] {
+        []
+    }
+}
+
 extension Place {
     nonisolated static let previewDestination = Place(
         name: "Pike Place Market",
@@ -159,6 +188,7 @@ extension AppDependencies {
         trips: [Trip] = Trip.previewSamples,
         authorization: LocationAuthorization = .authorized,
         routes: [Route] = Route.previewSamples,
+        hotspotsAvailable: Bool = true,
     ) -> AppDependencies {
         let repository = PreviewTripRepository(trips: trips)
         let logStore = PreviewSensorLogStore()
@@ -175,6 +205,11 @@ extension AppDependencies {
             planRoute: PlanRouteUseCase(
                 locationServices: locationServices,
                 directions: PreviewDirections(routes: routes),
+            ),
+            findRouteHotspots: FindRouteHotspotsUseCase(
+                service: PreviewHotspotService(isAvailable: hotspotsAvailable),
+                cache: PreviewHotspotCache(),
+                retryDelays: [],
             ),
         )
     }

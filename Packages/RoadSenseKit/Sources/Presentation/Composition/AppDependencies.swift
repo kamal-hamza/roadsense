@@ -8,6 +8,7 @@ public struct AppDependencies: Sendable {
     public let checkLocationAccess: CheckLocationAccessUseCase
     public let searchPlaces: SearchPlacesUseCase
     public let planRoute: PlanRouteUseCase
+    public let findRouteHotspots: FindRouteHotspotsUseCase
 
     public init(
         listTrips: ListTripsUseCase,
@@ -16,6 +17,7 @@ public struct AppDependencies: Sendable {
         checkLocationAccess: CheckLocationAccessUseCase,
         searchPlaces: SearchPlacesUseCase,
         planRoute: PlanRouteUseCase,
+        findRouteHotspots: FindRouteHotspotsUseCase,
     ) {
         self.listTrips = listTrips
         self.recordTrip = recordTrip
@@ -23,5 +25,6 @@ public struct AppDependencies: Sendable {
         self.checkLocationAccess = checkLocationAccess
         self.searchPlaces = searchPlaces
         self.planRoute = planRoute
+        self.findRouteHotspots = findRouteHotspots
     }
 }
