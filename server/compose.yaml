@@ -1,0 +1,20 @@
+# Local PostgreSQL + PostGIS for the RoadSense server. Start with `just server-db`.
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: roadsense
+      POSTGRES_PASSWORD: roadsense
+      POSTGRES_DB: roadsense
+    ports:
+      - "54329:5432"
+    volumes:
+      - roadsense-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U roadsense"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  roadsense-db:

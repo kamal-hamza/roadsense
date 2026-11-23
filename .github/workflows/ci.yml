@@ -23,6 +23,16 @@ jobs:
       - uses: jdx/mise-action@v3
       - run: just lint
 
+  server:
+    name: Server (lint + unit tests)
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - run: just server-lint
+      - run: just server-test
+
   build:
     name: Build (Release)
     runs-on: xcode-27

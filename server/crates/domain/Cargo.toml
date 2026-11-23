@@ -1,0 +1,15 @@
+# Business rules only: no I/O, no web, no database crates.
+[package]
+name = "roadsense-domain"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

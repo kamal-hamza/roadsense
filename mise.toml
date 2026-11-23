@@ -3,6 +3,7 @@
 
 [tools]
 just = "1.58.0"
+rust = "1.96.0"
 swiftformat = { version = "0.64.6", no_app = "true", rename_exe = "swiftformat" }
 swiftlint = "0.65.1"
 xcbeautify = "3.2.1"

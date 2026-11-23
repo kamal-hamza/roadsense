@@ -13,5 +13,9 @@ xcuserdata/
 .build/
 .swiftpm/
 
+# Rust (server/)
+server/target/
+server/data/
+
 # Local docs (not committed)
 docs/

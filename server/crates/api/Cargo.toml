@@ -1,0 +1,28 @@
+# HTTP API and composition root (main.rs wires concrete types, like AppContainer).
+[package]
+name = "roadsense-api"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+roadsense-domain.workspace = true
+roadsense-application.workspace = true
+roadsense-infrastructure.workspace = true
+axum.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

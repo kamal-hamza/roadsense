@@ -58,7 +58,35 @@ format:
     swiftlint lint --fix --quiet
 
 # Format, lint, and test (run before calling a change done)
-check: format lint test-sensors test
+check: format lint test-sensors test server-format server-lint server-test
+
+# --- Backend (server/) ---
+
+server_db_url := env("DATABASE_URL", "postgres://roadsense:roadsense@localhost:54329/roadsense")
+
+# Start the local PostGIS database (needs Docker running)
+server-db:
+    docker compose -f server/compose.yaml up -d --wait
+
+# Run the API server (uses PostGIS; set ROADSENSE_IN_MEMORY=1 to run without a database)
+server-run: server-db
+    cd server && DATABASE_URL="{{ server_db_url }}" cargo run -p roadsense-api
+
+# Run the server's unit tests (no database needed)
+server-test:
+    cd server && cargo test --workspace --quiet
+
+# Run the server's PostGIS integration tests (starts the database)
+server-test-db: server-db
+    cd server && DATABASE_URL="{{ server_db_url }}" cargo test --workspace --quiet -- --ignored
+
+# Check server formatting and lints
+server-lint:
+    cd server && cargo fmt --check && cargo clippy --workspace --all-targets --quiet -- -D warnings
+
+# Auto-format server code
+server-format:
+    cd server && cargo fmt
 
 # Remove build artifacts
 clean:
