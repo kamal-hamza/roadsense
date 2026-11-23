@@ -10,6 +10,8 @@
 		B1000000000000000000001 /* Presentation in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000011 /* Presentation */; };
 		B1000000000000000000002 /* Infrastructure in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000012 /* Infrastructure */; };
 		B1000000000000000000003 /* Application in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000013 /* Application */; };
+		B1000000000000000000004 /* SensorDevice in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000014 /* SensorDevice */; };
+		B1000000000000000000005 /* SensorRecording in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000015 /* SensorRecording */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -24,13 +26,27 @@
 
 /* Begin PBXFileReference section */
 		A10000000000000000000030 /* RoadSense.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RoadSense.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B10000000000000000000030 /* RoadSenseKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = RoadSenseKit; path = Packages/RoadSenseKit; sourceTree = "<group>"; };
 		A10000000000000000000031 /* RoadSenseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RoadSenseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000030 /* RoadSenseKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = RoadSenseKit; path = Packages/RoadSenseKit; sourceTree = "<group>"; };
+		B10000000000000000000031 /* RoadSenseSensors */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = RoadSenseSensors; path = Packages/RoadSenseSensors; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C10000000000000000000001 /* Exceptions for "RoadSense" folder in "RoadSense" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A10000000000000000000020 /* RoadSense */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000040 /* RoadSense */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C10000000000000000000001 /* Exceptions for "RoadSense" folder in "RoadSense" target */,
+			);
 			path = RoadSense;
 			sourceTree = "<group>";
 		};
@@ -49,6 +65,8 @@
 				B1000000000000000000001 /* Presentation in Frameworks */,
 				B1000000000000000000002 /* Infrastructure in Frameworks */,
 				B1000000000000000000003 /* Application in Frameworks */,
+				B1000000000000000000004 /* SensorDevice in Frameworks */,
+				B1000000000000000000005 /* SensorRecording in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -68,6 +86,7 @@
 				A10000000000000000000040 /* RoadSense */,
 				A10000000000000000000041 /* RoadSenseTests */,
 				B10000000000000000000030 /* RoadSenseKit */,
+				B10000000000000000000031 /* RoadSenseSensors */,
 				A10000000000000000000060 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -104,6 +123,8 @@
 				B1000000000000000000011 /* Presentation */,
 				B1000000000000000000012 /* Infrastructure */,
 				B1000000000000000000013 /* Application */,
+				B1000000000000000000014 /* SensorDevice */,
+				B1000000000000000000015 /* SensorRecording */,
 			);
 			productName = RoadSense;
 			productReference = A10000000000000000000030 /* RoadSense.app */;
@@ -162,6 +183,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B10000000000000000000020 /* XCLocalSwiftPackageReference "Packages/RoadSenseKit" */,
+				B10000000000000000000021 /* XCLocalSwiftPackageReference "Packages/RoadSenseSensors" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000060 /* Products */;
@@ -285,9 +307,14 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 95443NR85G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RoadSense/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RoadSense;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RoadSense uses your location while recording a trip to measure speed and place road events on the map.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "RoadSense uses motion data to detect driving and to sense braking, turns, and bumps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -317,9 +344,14 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 95443NR85G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RoadSense/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RoadSense;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RoadSense uses your location while recording a trip to measure speed and place road events on the map.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "RoadSense uses motion data to detect driving and to sense braking, turns, and bumps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -419,6 +451,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/RoadSenseKit;
 		};
+		B10000000000000000000021 /* XCLocalSwiftPackageReference "Packages/RoadSenseSensors" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/RoadSenseSensors;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -433,6 +469,14 @@
 		B1000000000000000000013 /* Application */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Application;
+		};
+		B1000000000000000000014 /* SensorDevice */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SensorDevice;
+		};
+		B1000000000000000000015 /* SensorRecording */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SensorRecording;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

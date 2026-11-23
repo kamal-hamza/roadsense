@@ -5,15 +5,23 @@ import SwiftUI
 /// Lists recorded trips.
 struct TripListView: View {
     @State private var viewModel: TripListViewModel
+    private let findSensorLog: FindSensorLogUseCase
 
-    init(listTrips: ListTripsUseCase) {
+    init(listTrips: ListTripsUseCase, findSensorLog: FindSensorLogUseCase) {
         _viewModel = State(initialValue: TripListViewModel(listTrips: listTrips))
+        self.findSensorLog = findSensorLog
     }
 
     var body: some View {
         content
             .navigationTitle("Trips")
+            // Tapping a NavigationLink(value: trip) below opens this screen.
+            .navigationDestination(for: Trip.self) { trip in
+                TripDetailView(trip: trip, findSensorLog: findSensorLog)
+            }
+            // Re-runs each time the tab appears, so newly recorded trips show up.
             .task { await viewModel.load() }
+            .refreshable { await viewModel.load() }
     }
 
     @ViewBuilder
@@ -29,7 +37,9 @@ struct TripListView: View {
             )
         case let .loaded(trips):
             List(trips) { trip in
-                TripRow(trip: trip)
+                NavigationLink(value: trip) {
+                    TripRow(trip: trip)
+                }
             }
         case let .failed(message):
             ContentUnavailableView(
@@ -43,12 +53,15 @@ struct TripListView: View {
 
 #Preview("Trips") {
     NavigationStack {
-        TripListView(listTrips: AppDependencies.preview.listTrips)
+        TripListView(listTrips: AppDependencies.preview.listTrips, findSensorLog: AppDependencies.preview.findSensorLog)
     }
 }
 
 #Preview("Empty") {
     NavigationStack {
-        TripListView(listTrips: AppDependencies.preview(trips: []).listTrips)
+        TripListView(
+            listTrips: AppDependencies.preview(trips: []).listTrips,
+            findSensorLog: AppDependencies.preview.findSensorLog,
+        )
     }
 }

@@ -2,4 +2,5 @@
 public enum TripError: Error, Equatable, Sendable {
     case emptyName
     case negativeDistance
+    case endsBeforeStart
 }
