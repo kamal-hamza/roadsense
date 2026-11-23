@@ -36,6 +36,7 @@ enum AppContainer {
             ),
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: tripLogStore),
             submitTripFeedback: SubmitTripFeedbackUseCase(tripLogStore: tripLogStore),
+            managePreferences: ManagePreferencesUseCase(preferences: preferences),
         )
     }
 

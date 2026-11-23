@@ -270,6 +270,7 @@ extension AppDependencies {
             retryDelays: [],
         )
         let directions = PreviewDirections(routes: routes)
+        let preferences = PreviewPreferences()
         return AppDependencies(
             listTrips: ListTripsUseCase(repository: repository),
             recordTrip: recordTrip,
@@ -284,10 +285,11 @@ extension AppDependencies {
                 alerting: PreviewDriveAlerting(),
                 directions: directions,
                 findHotspots: findRouteHotspots,
-                preferences: PreviewPreferences(),
+                preferences: preferences,
             ),
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: PreviewTripLogStore()),
             submitTripFeedback: SubmitTripFeedbackUseCase(tripLogStore: PreviewTripLogStore()),
+            managePreferences: ManagePreferencesUseCase(preferences: preferences),
         )
     }
 }
