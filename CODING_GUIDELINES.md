@@ -466,7 +466,38 @@ simply, the design may be wrong.
 - Start with a one-line summary sentence fragment ending in a period. Functions
   say what they *do* and *return*. Types and properties say what they *are*.
 - Add `- Parameter`, `- Returns`, `- Throws` only when they add information.
+- **Keep doc comments short:** one summary line, plus a `- Throws:` or similar line
+  only when needed. Long explanations, design rationale, and algorithm write-ups go
+  in `docs/` (e.g. `docs/SENSORS.md`), with a pointer like `See docs/SENSORS.md §4.`
 - Comments explain *why*, not *what*. Delete commented-out code.
+
+### 9.1 Inline comments
+
+Write short `//` comments inside function bodies, the way a teammate would leave
+notes for the next reader. Someone new to Swift or to the sensor math should be
+able to skim the comments and follow the code.
+
+- **SHOULD** put a one-line `//` comment above any line or block that isn't
+  obvious from the code alone: a formula, a magic number, a unit conversion, a
+  workaround, an ordering requirement, or a concurrency rule.
+- **SHOULD** put a one-line summary above a group of lines that do one step
+  together (e.g. `// Project gravity out so only the car's own acceleration is left.`).
+- Keep each comment to one line, in plain words, and say *why* or *what this step
+  is for*. Write the way a person talks, not the way a spec reads.
+- **AVOID** multi-line paragraph comments, banner/header blocks (`// ====`), and
+  ASCII diagrams in code. If it needs more than a line or two, it belongs in
+  `docs/` or `AGENTS.md`, not in the source file.
+- **AVOID** narrating code that already reads clearly (`// increment count`,
+  `// return result`), or putting a comment on every line.
+- **MUST** update or delete a comment when you change the code under it. A wrong
+  comment is worse than none.
+
+```swift
+// Speed changes slowly, so compare against the sample ~1 s ago, not the previous one.
+let deltaSpeed = speed - speedHistory.oldest
+// Lateral accel = speed × yaw rate (same as v²/r for a circle).
+let lateral = speed * yawRate
+```
 
 ---
 
@@ -478,6 +509,7 @@ simply, the design may be wrong.
 - [ ] `@Observable` + `@State`/`@Environment`/`@Bindable` used. No `ObservableObject`.
 - [ ] Zero compiler warnings. No `@unchecked Sendable` or `nonisolated(unsafe)` without justification.
 - [ ] Tests added in each layer touched.
+- [ ] Non-obvious lines and multi-line steps have a short `//` comment (§9.1), comments on changed code are still accurate, and there are no paragraph comments, banners, or diagrams in code.
 - [ ] Screen-level views have previews, labels, and Dynamic Type support.
 - [ ] Permissions have usage strings and handle denial.
 - [ ] `just check` passes. For UI changes, `just run` + `just screenshot` was checked.

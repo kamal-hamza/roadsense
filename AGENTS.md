@@ -177,6 +177,13 @@ docs/SENSORS.md                  Sensor/background/event-detection design (Apple
   build setting go in `RoadSense/Info.plist` (currently `UIBackgroundModes` and
   `UIFileSharingEnabled`). That file is excluded from resource copying in the
   project; keep it that way.
+- **Both packages must also build for macOS.** Editors like Zed use sourcekit-lsp,
+  which builds packages for the Mac. If a package stops building there, every file
+  shows "No such module" and completions stop working. Keep `.macOS(.v26)` in both
+  `Package.swift` files, wrap iOS-only APIs in `#if os(iOS)`, and check with
+  `swift build` inside the package. Files in the app target (`RoadSense/`,
+  `RoadSenseTests/`) aren't in a package, so the editor can't resolve their imports.
+  Xcode is the source of truth for those.
 - **Sensors need a real iPhone.** The simulator has no motion sensors, so it runs a
   simulated drive. Background recording behavior can only be checked on a device.
 - **Entitlements and capabilities** (background location, push, etc.) need a
@@ -184,6 +191,11 @@ docs/SENSORS.md                  Sensor/background/event-detection design (Apple
   needs Apple Developer portal setup.
 - **Code signing:** automatic, no `DEVELOPMENT_TEAM` committed. Simulator builds
   don't need a team. Don't hardcode a team ID.
+- **Comment like a human.** Put a short one-line `//` comment above non-obvious
+  code (math, thresholds, workarounds, concurrency rules) and above groups of lines
+  that do one step together. Don't narrate the obvious. No paragraph comments,
+  banner blocks, or ASCII diagrams in code; put long explanations in `docs/`. Keep comments accurate when
+  you change code. See [`CODING_GUIDELINES.md` §9.1](CODING_GUIDELINES.md#91-inline-comments).
 - **Formatting** is owned by SwiftFormat. It also rewrites test names into raw
   identifiers (`` `does the thing` ``). Run `just format` rather than fighting it.
 - **CI** runs on the `xcode-27` GitHub runner and picks the first available iPhone
