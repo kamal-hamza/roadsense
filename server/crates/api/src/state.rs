@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use roadsense_application::ports::HealthCheck;
+
 use roadsense_application::use_cases::{
     AcceptUpload, ComputeMetrics, DemoteStaleHotspots, LookupRouteHotspots, ProcessEvents, RegisterDevice,
 };
@@ -15,4 +17,7 @@ pub struct AppState {
     pub process_events: Arc<ProcessEvents>,
     pub compute_metrics: Arc<ComputeMetrics>,
     pub demote_stale_hotspots: Arc<DemoteStaleHotspots>,
+    pub health: Arc<dyn HealthCheck>,
+    /// Secret for the internal endpoints (metrics, demotion). `None` turns them off.
+    pub admin_token: Option<Arc<str>>,
 }

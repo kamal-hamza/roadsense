@@ -13,15 +13,31 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
 
+const ADMIN_TOKEN: &str = "test-admin-token";
+
 fn app() -> Router {
-    router(build_state(Storage::in_memory()))
+    router(build_state(Storage::in_memory(), Some(ADMIN_TOKEN.into())))
 }
 
 async fn send(app: &Router, method: &str, path: &str, device: Option<Uuid>, body: Value) -> (StatusCode, Value) {
+    send_with(app, method, path, device, None, body).await
+}
+
+async fn send_with(
+    app: &Router,
+    method: &str,
+    path: &str,
+    device: Option<Uuid>,
+    bearer: Option<&str>,
+    body: Value,
+) -> (StatusCode, Value) {
     let mut request = Request::builder()
         .method(method)
         .uri(path)
         .header("content-type", "application/json");
+    if let Some(token) = bearer {
+        request = request.header("authorization", format!("Bearer {token}"));
+    }
     if let Some(device) = device {
         request = request.header("x-device-id", device.to_string());
     }
@@ -126,7 +142,7 @@ async fn five_drivers_braking_at_one_spot_put_it_on_everyones_route() {
 async fn the_wire_format_uses_camel_case() {
     let app = app();
     let device = register(&app).await;
-    let (_, body) = send(&app, "GET", "/v1/metrics", None, Value::Null).await;
+    let (_, body) = send_with(&app, "GET", "/v1/metrics", None, Some(ADMIN_TOKEN), Value::Null).await;
     assert!(body.get("warnedPasses").is_some(), "{body}");
 
     let passed = json!({
@@ -217,4 +233,44 @@ async fn counters_are_accepted_when_data_sharing_is_off() {
     let (status, _) = send(&app, "POST", "/v1/events", Some(device), counters).await;
 
     assert_eq!(status, StatusCode::ACCEPTED);
+}
+
+#[tokio::test]
+async fn internal_endpoints_need_the_admin_token() {
+    let app = app();
+
+    let (no_token, _) = send(&app, "GET", "/v1/metrics", None, Value::Null).await;
+    let (wrong, _) = send_with(&app, "GET", "/v1/metrics", None, Some("nope"), Value::Null).await;
+    let (right, _) = send_with(&app, "GET", "/v1/metrics", None, Some(ADMIN_TOKEN), Value::Null).await;
+    let (demote, body) = send_with(
+        &app,
+        "POST",
+        "/v1/admin/demote-stale-hotspots",
+        None,
+        Some(ADMIN_TOKEN),
+        Value::Null,
+    )
+    .await;
+
+    assert_eq!(no_token, StatusCode::NOT_FOUND);
+    assert_eq!(wrong, StatusCode::NOT_FOUND);
+    assert_eq!(right, StatusCode::OK);
+    assert_eq!(demote, StatusCode::OK);
+    assert_eq!(body["demoted"], 0);
+}
+
+#[tokio::test]
+async fn without_a_configured_token_internal_endpoints_are_off() {
+    let app = router(build_state(Storage::in_memory(), None));
+
+    let (status, _) = send_with(&app, "GET", "/v1/metrics", None, Some(""), Value::Null).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn health_checks_storage() {
+    let (status, _) = send(&app(), "GET", "/health", None, Value::Null).await;
+
+    assert_eq!(status, StatusCode::OK);
 }

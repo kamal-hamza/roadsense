@@ -65,6 +65,12 @@ pub trait EventRepository: Send + Sync {
     async fn week_one_retention_counts(&self, now: DateTime<Utc>) -> StoreResult<(u32, u32)>;
 }
 
+/// Whether storage is reachable, for the health check (a keep-alive ping also keeps a free database awake).
+#[async_trait]
+pub trait HealthCheck: Send + Sync {
+    async fn check(&self) -> StoreResult<()>;
+}
+
 /// Road geometry from the map, for classifying hotspots.
 #[async_trait]
 pub trait RoadNetwork: Send + Sync {

@@ -5,7 +5,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
-use roadsense_application::ports::{DeviceRepository, EventRepository, HotspotRepository, StoreResult};
+use roadsense_application::ports::{DeviceRepository, EventRepository, HealthCheck, HotspotRepository, StoreResult};
 use roadsense_domain::events::{Event, EventKind, PassOutcome, UsageCounters};
 use roadsense_domain::geo::{Coordinate, Polyline};
 use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotStatus};
@@ -233,6 +233,13 @@ impl EventRepository for MemoryStore {
             }
         }
         Ok((new_devices, retained))
+    }
+}
+
+#[async_trait]
+impl HealthCheck for MemoryStore {
+    async fn check(&self) -> StoreResult<()> {
+        Ok(())
     }
 }
 
