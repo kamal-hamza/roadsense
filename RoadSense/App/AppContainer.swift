@@ -1,4 +1,5 @@
 import Application
+import Foundation
 import Infrastructure
 import Presentation
 import SensorDevice
@@ -19,7 +20,17 @@ enum AppContainer {
             checkLocationAccess: CheckLocationAccessUseCase(locationServices: locationServices),
             searchPlaces: SearchPlacesUseCase(locationServices: locationServices, placeSearch: MapKitPlaceSearch()),
             planRoute: PlanRouteUseCase(locationServices: locationServices, directions: MapKitDirections()),
+            findRouteHotspots: FindRouteHotspotsUseCase(service: makeHotspotService(), cache: FileHotspotCache()),
         )
+    }
+
+    /// Demo hotspots until the Rust server exists (M6). `-hotspotServiceOffline` simulates no connection.
+    private static func makeHotspotService() -> any HotspotService {
+        #if DEBUG
+            DemoHotspotService(isOffline: ProcessInfo.processInfo.arguments.contains("-hotspotServiceOffline"))
+        #else
+            DemoHotspotService()
+        #endif
     }
 
     /// Real sensors on a phone; a simulated drive in the iOS Simulator, which has no motion sensors.
