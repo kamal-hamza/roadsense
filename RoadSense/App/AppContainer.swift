@@ -16,6 +16,7 @@ enum AppContainer {
         let directions = MapKitDirections()
         let findRouteHotspots = FindRouteHotspotsUseCase(service: makeHotspotService(), cache: FileHotspotCache())
         let tripLogStore = FileTripLogStore()
+        let preferences = UserDefaultsPreferences()
 
         return AppDependencies(
             listTrips: ListTripsUseCase(repository: tripRepository),
@@ -31,6 +32,7 @@ enum AppContainer {
                 alerting: makeAlerter(),
                 directions: directions,
                 findHotspots: findRouteHotspots,
+                preferences: preferences,
             ),
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: tripLogStore),
         )

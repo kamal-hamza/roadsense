@@ -117,6 +117,19 @@ struct PreviewDriveAlerting: DriveAlerting {
     func announce(_: DriveWarning) async {}
 }
 
+/// Settings kept in memory for previews.
+actor PreviewPreferences: UserPreferences {
+    private var stored = AppPreferences()
+
+    func load() async -> AppPreferences {
+        stored
+    }
+
+    func save(_ preferences: AppPreferences) async {
+        stored = preferences
+    }
+}
+
 /// A hotspot cache with nothing saved.
 struct PreviewHotspotCache: HotspotCache {
     func save(_: CachedHotspotArea) async throws {}
@@ -249,6 +262,7 @@ extension AppDependencies {
                 alerting: PreviewDriveAlerting(),
                 directions: directions,
                 findHotspots: findRouteHotspots,
+                preferences: PreviewPreferences(),
             ),
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: PreviewTripLogStore()),
         )

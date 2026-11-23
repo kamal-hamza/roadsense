@@ -31,6 +31,7 @@ struct DriveViewModelTests {
             alerting: SilentAlerting(),
             directions: NoDirections(),
             findHotspots: FindRouteHotspotsUseCase(service: NoHotspots(), cache: NoHotspotCache(), retryDelays: []),
+            preferences: DefaultPreferences(),
         )
         return DriveViewModel(plan: plan, driveTrip: driveTrip)
     }
@@ -152,4 +153,12 @@ private struct NoHotspotCache: HotspotCache {
     func areas() async throws -> [CachedHotspotArea] {
         []
     }
+}
+
+private struct DefaultPreferences: UserPreferences {
+    func load() async -> AppPreferences {
+        AppPreferences()
+    }
+
+    func save(_: AppPreferences) async {}
 }
