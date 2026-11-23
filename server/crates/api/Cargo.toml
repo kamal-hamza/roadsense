@@ -10,6 +10,7 @@ publish.workspace = true
 roadsense-domain.workspace = true
 roadsense-application.workspace = true
 roadsense-infrastructure.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 chrono.workspace = true
 serde.workspace = true
@@ -22,6 +23,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 http-body-util.workspace = true
+serde_json.workspace = true
 tower.workspace = true
 
 [lints]
