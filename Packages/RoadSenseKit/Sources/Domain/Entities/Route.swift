@@ -40,6 +40,26 @@ public struct Route: Hashable, Sendable {
         self.segments = segments
     }
 
+    /// The spot `distance` meters from the start (clamped to the route) and the direction of travel there.
+    /// - Complexity: O(log *n*) in the number of segments.
+    public func location(atDistance distance: Double) -> (coordinate: Coordinate, bearing: Bearing) {
+        let clamped = min(max(0, distance), length)
+        // Segments are sorted by start distance, so binary-search for the last one starting at or before `clamped`.
+        var low = 0
+        var high = segments.count - 1
+        while low < high {
+            let middle = (low + high + 1) / 2
+            if segments[middle].distanceFromStart <= clamped {
+                low = middle
+            } else {
+                high = middle - 1
+            }
+        }
+        let segment = segments[low]
+        let fraction = segment.length > 0 ? (clamped - segment.distanceFromStart) / segment.length : 0
+        return (segment.start.interpolated(to: segment.end, fraction: fraction), segment.bearing)
+    }
+
     /// Where `point` falls on the route, searching only `segmentRange` (all segments by default).
     /// - Complexity: O(*n*), where *n* is the number of segments searched.
     public func projection(of point: Coordinate, in segmentRange: Range<Int>? = nil) -> RouteProjection {

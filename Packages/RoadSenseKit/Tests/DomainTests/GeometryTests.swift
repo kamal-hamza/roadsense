@@ -78,6 +78,29 @@ struct RouteTests {
         #expect(projection.segmentIndex == 7)
     }
 
+    @Test(arguments: [(0.0, 0.0), (750, 750), (2000, 2000), (-50, 0), (2500, 2000)])
+    func `finds the spot at a distance along the route`(distance: Double, expected: Double) throws {
+        let route = try Fixtures.northRoute()
+
+        let location = route.location(atDistance: distance)
+
+        #expect(location.coordinate.distance(to: Fixtures.point(expected)) < 1)
+        #expect(location.bearing.difference(to: Fixtures.north) < 0.1)
+    }
+
+    @Test func `direction follows the segment at that distance`() throws {
+        let route = try Route(
+            name: "L",
+            points: [Fixtures.point(0), Fixtures.point(500), Fixtures.point(500, east: 500)],
+            expectedTravelTime: 60,
+        )
+
+        let location = route.location(atDistance: 700)
+
+        #expect(location.bearing.difference(to: Bearing(degrees: 90)) < 1)
+        #expect(location.coordinate.distance(to: Fixtures.point(500, east: 200)) < 1)
+    }
+
     @Test func `round-trips through JSON`() throws {
         let route = try Fixtures.northRoute()
 
