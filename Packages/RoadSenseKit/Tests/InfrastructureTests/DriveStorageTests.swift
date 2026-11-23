@@ -10,7 +10,7 @@ struct FileTripLogStoreTests {
     private let here = Coordinate(latitude: 47.6, longitude: -122.3)
 
     private func temporaryDirectory() -> URL {
-        FileManager.default.temporaryDirectory.appending(path: "FileTripLogStoreTests-\(UUID().uuidString)")
+        FileManager.default.temporaryDirectory.appending(path: "File TripLogStore Tests-\(UUID().uuidString)")
     }
 
     private func entry(_ seconds: TimeInterval) -> TripLogEntry {

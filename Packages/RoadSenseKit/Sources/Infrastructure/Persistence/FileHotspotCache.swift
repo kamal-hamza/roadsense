@@ -40,7 +40,7 @@ public actor FileHotspotCache: HotspotCache {
         if let loaded {
             return loaded
         }
-        guard FileManager.default.fileExists(atPath: fileURL.path()) else {
+        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else {
             loaded = []
             return []
         }

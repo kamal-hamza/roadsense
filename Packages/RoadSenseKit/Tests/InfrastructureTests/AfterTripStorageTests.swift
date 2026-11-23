@@ -16,7 +16,7 @@ struct FileUploadQueueTests {
 
     @Test func `keeps batches oldest first across instances, and removes them`() async throws {
         let directory = FileManager.default.temporaryDirectory
-            .appending(path: "FileUploadQueueTests-\(UUID().uuidString)")
+            .appending(path: "File UploadQueue Tests-\(UUID().uuidString)")
         let older = batch(createdAt: 1)
         let newer = batch(createdAt: 2)
         try await FileUploadQueue(directory: directory).enqueue(newer)
@@ -33,7 +33,7 @@ struct FileUploadQueueTests {
 
     @Test func `an empty queue has nothing pending`() async throws {
         let directory = FileManager.default.temporaryDirectory
-            .appending(path: "FileUploadQueueTests-\(UUID().uuidString)")
+            .appending(path: "File UploadQueue Tests-\(UUID().uuidString)")
 
         #expect(try await FileUploadQueue(directory: directory).pending().isEmpty)
     }

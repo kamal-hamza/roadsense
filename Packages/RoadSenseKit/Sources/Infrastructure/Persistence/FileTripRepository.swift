@@ -31,7 +31,7 @@ public actor FileTripRepository: TripRepository {
         if let cache {
             return cache
         }
-        guard FileManager.default.fileExists(atPath: fileURL.path()) else {
+        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else {
             cache = [:]
             return [:]
         }

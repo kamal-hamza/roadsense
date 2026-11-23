@@ -21,7 +21,7 @@ public actor FileUploadQueue: UploadQueue {
     }
 
     public func pending() throws -> [UploadBatch] {
-        guard FileManager.default.fileExists(atPath: directory.path()) else { return [] }
+        guard FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)) else { return [] }
         let decoder = JSONDecoder()
         return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
@@ -32,7 +32,7 @@ public actor FileUploadQueue: UploadQueue {
     public func remove(id: UploadBatch.ID) throws {
         let fileURL = url(for: id)
         // Removing twice (e.g. a retried upload) is fine.
-        guard FileManager.default.fileExists(atPath: fileURL.path()) else { return }
+        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return }
         try FileManager.default.removeItem(at: fileURL)
     }
 
