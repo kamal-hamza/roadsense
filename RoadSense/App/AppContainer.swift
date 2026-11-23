@@ -12,16 +12,39 @@ enum AppContainer {
         let sensorLogStore = FileSensorLogStore()
         let recorder = SensorRecorder(sensorSource: makeSensorSource(), sensorLogStore: sensorLogStore)
         let locationServices = makeLocationServices()
+        let recordTrip = RecordTripUseCase(recorder: recorder, tripRepository: tripRepository)
+        let directions = MapKitDirections()
+        let findRouteHotspots = FindRouteHotspotsUseCase(service: makeHotspotService(), cache: FileHotspotCache())
+        let tripLogStore = FileTripLogStore()
 
         return AppDependencies(
             listTrips: ListTripsUseCase(repository: tripRepository),
-            recordTrip: RecordTripUseCase(recorder: recorder, tripRepository: tripRepository),
+            recordTrip: recordTrip,
             findSensorLog: FindSensorLogUseCase(store: sensorLogStore),
             checkLocationAccess: CheckLocationAccessUseCase(locationServices: locationServices),
             searchPlaces: SearchPlacesUseCase(locationServices: locationServices, placeSearch: MapKitPlaceSearch()),
-            planRoute: PlanRouteUseCase(locationServices: locationServices, directions: MapKitDirections()),
-            findRouteHotspots: FindRouteHotspotsUseCase(service: makeHotspotService(), cache: FileHotspotCache()),
+            planRoute: PlanRouteUseCase(locationServices: locationServices, directions: directions),
+            findRouteHotspots: findRouteHotspots,
+            driveTrip: DriveTripUseCase(
+                recordTrip: recordTrip,
+                tripLogStore: tripLogStore,
+                alerting: makeAlerter(),
+                directions: directions,
+                findHotspots: findRouteHotspots,
+            ),
+            recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: tripLogStore),
         )
+    }
+
+    /// `-skipNotificationPrompt` (debug only) lets automated runs start a drive without answering the prompt.
+    private static func makeAlerter() -> any DriveAlerting {
+        #if DEBUG
+            SystemDriveAlerter(
+                asksForNotificationPermission: !ProcessInfo.processInfo.arguments.contains("-skipNotificationPrompt"),
+            )
+        #else
+            SystemDriveAlerter()
+        #endif
     }
 
     /// Demo hotspots until the Rust server exists (M6). `-hotspotServiceOffline` simulates no connection.

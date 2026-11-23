@@ -4,9 +4,12 @@ import SensorCore
 public struct SensorConfiguration: Hashable, Sendable {
     /// Device-motion sample rate. 50 Hz covers driving dynamics; bumps benefit from 100 Hz.
     public var motionRateHz: Double
+    /// The path the drive is expected to follow. Real sensors ignore it; simulated sources drive along it.
+    public var plannedPath: [Coordinate]
 
-    public init(motionRateHz: Double = 50) {
+    public init(motionRateHz: Double = 50, plannedPath: [Coordinate] = []) {
         self.motionRateHz = motionRateHz
+        self.plannedPath = plannedPath
     }
 }
 

@@ -30,6 +30,39 @@ struct SensorRecorderTests {
         #expect(await logStore.isOpen == false)
     }
 
+    @Test func `snapshots carry the latest GPS fix`() async throws {
+        let recorder = SensorRecorder(
+            sensorSource: StubSensorSource(readings: drive.readings()),
+            sensorLogStore: MemorySensorLogStore(),
+        )
+
+        var lastSnapshot: RecordingSnapshot?
+        for await snapshot in try await recorder.start() {
+            lastSnapshot = snapshot
+        }
+        _ = try await recorder.stop()
+
+        let location = try #require(lastSnapshot?.location)
+        #expect(location.speed != nil)
+        // The last snapshot is stamped with the last reading's sensor time, not the wall clock.
+        #expect(lastSnapshot?.timestamp == drive.readings().last?.timestamp)
+    }
+
+    @Test func `uses the detection thresholds it's given`() async throws {
+        let recorder = SensorRecorder(
+            sensorSource: StubSensorSource(readings: drive.readings()),
+            sensorLogStore: MemorySensorLogStore(),
+        )
+        var strict = DetectionPipeline.Configuration()
+        // The drive brakes at 0.45 g, so a 0.6 g rule should ignore it.
+        strict.hardBrakeThreshold = 0.6
+
+        for await _ in try await recorder.start(options: .init(detection: strict)) {}
+        let summary = try await recorder.stop()
+
+        #expect(summary.events.isEmpty)
+    }
+
     @Test func `can't start twice`() async throws {
         let recorder = SensorRecorder(
             sensorSource: StubSensorSource(readings: []),

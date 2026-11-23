@@ -1,3 +1,4 @@
+import Application
 import SwiftUI
 
 /// The app's root view. Entry point from the composition root into Presentation.
@@ -21,6 +22,7 @@ public struct RootView: View {
                     searchPlaces: dependencies.searchPlaces,
                     planRoute: dependencies.planRoute,
                     findHotspots: dependencies.findRouteHotspots,
+                    driveTrip: dependencies.driveTrip,
                 )
             }
             Tab("Trips", systemImage: "list.bullet", value: TabID.trips) {
@@ -34,6 +36,8 @@ public struct RootView: View {
                 }
             }
         }
+        // A drive cut off last time (app closed, battery died) is closed as incomplete; there's nothing to show.
+        .task { _ = try? await dependencies.recoverIncompleteTrip() }
     }
 
     /// The Drive tab, unless the `-autoStartRecording` dev hook asks for the recording screen under Settings.

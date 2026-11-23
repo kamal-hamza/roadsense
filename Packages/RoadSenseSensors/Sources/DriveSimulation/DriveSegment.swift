@@ -1,4 +1,5 @@
 import Foundation
+import SensorCore
 
 /// One phase of a synthetic drive.
 public enum DriveSegment: Sendable {
@@ -17,6 +18,8 @@ public enum DriveSegment: Sendable {
     case bump(g: Double)
     /// Instantly re-seats the phone in a new position.
     case repositionPhone(PhoneOrientation)
+    /// Drives along `path` from wherever the car is: speeds up to `cruiseSpeed` (m/s), steers, and stops at the end.
+    case followPath([Coordinate], cruiseSpeed: Double)
 
     var duration: Double {
         switch self {
@@ -26,7 +29,8 @@ public enum DriveSegment: Sendable {
         case let .accelerate(_, seconds), let .brake(_, seconds), let .turn(_, seconds, _): seconds
         case let .swerve(_, secondsPerSide): secondsPerSide * 2
         case .bump: 0.5
-        case .repositionPhone: 0
+        // Path following runs until the car reaches the end, so it has no fixed length.
+        case .repositionPhone, .followPath: 0
         }
     }
 

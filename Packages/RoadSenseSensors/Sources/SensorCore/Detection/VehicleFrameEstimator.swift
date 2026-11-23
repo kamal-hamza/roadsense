@@ -2,7 +2,7 @@ import Foundation
 
 /// Learns the car's up, forward, and yaw axes from phone sensors, wherever the phone sits. See docs/SENSORS.md §4.
 public struct VehicleFrameEstimator: Sendable {
-    public struct Configuration: Sendable {
+    public struct Configuration: Hashable, Sendable {
         /// Minimum |Δspeed/Δt| (in g) for a GPS interval to teach the forward axis.
         public var minimumTrainingAcceleration = 0.08
         /// Maximum average |yaw rate| (rad/s) for a GPS interval to count as straight.

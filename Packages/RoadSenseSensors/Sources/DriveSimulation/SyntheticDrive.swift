@@ -80,6 +80,10 @@ private struct Generator {
             orientation = newOrientation
             return
         }
+        if case let .followPath(path, cruiseSpeed) = segment {
+            follow(path, cruiseSpeed: cruiseSpeed)
+            return
+        }
         // Mimic the motion chip: one activity update whenever driving starts or stops.
         emitActivityIfChanged(segment.isParked ? .stationary : .automotive)
         let steps = Int((segment.duration * drive.motionRateHz).rounded())
@@ -92,7 +96,7 @@ private struct Generator {
     mutating func dynamics(for segment: DriveSegment, at localTime: Double) -> Dynamics {
         var dynamics = Dynamics()
         switch segment {
-        case .parked, .cruise, .repositionPhone:
+        case .parked, .cruise, .repositionPhone, .followPath:
             break
         case .shakePhone:
             dynamics.phoneAcceleration = random.gaussianVector(standardDeviation: 0.8)
@@ -118,6 +122,82 @@ private struct Generator {
             dynamics.vertical = localTime < 0.06 ? g : 0
         }
         return dynamics
+    }
+
+    /// Steers along `path` with pure pursuit (aim at a point a little ahead), slowing for corners, then stops at its
+    /// end.
+    mutating func follow(_ path: [Coordinate], cruiseSpeed: Double) {
+        guard path.count >= 2 else { return }
+        emitActivityIfChanged(.automotive)
+        let geometry = PathGeometry(path)
+        var segment = 0
+        // Long enough for any real route at walking pace, so a steering bug can't loop forever.
+        let maximumSteps = Int((geometry.length / 1 + 120) * drive.motionRateHz)
+        for _ in 0 ..< maximumSteps {
+            let position = geometry.local(coordinate)
+            let progress = geometry.progress(of: position, fromSegment: segment)
+            segment = progress.segment
+            let remaining = geometry.length - progress.distance
+            if remaining < 2, speed < 0.5 {
+                break
+            }
+            var dynamics = Dynamics()
+            dynamics.longitudinal = longitudinalG(
+                remaining: remaining,
+                cruiseSpeed: cruiseSpeed,
+                corner: geometry.sharpestTurn(after: progress.distance, within: 120),
+            )
+            // Aim further ahead at speed, like a driver looking down the road.
+            let target = geometry.point(atDistance: progress.distance + max(8, speed * 1.2))
+            dynamics.lateral = steeringLateralG(toward: target - position)
+            step(with: dynamics)
+        }
+    }
+
+    /// Speeds up to cruise, slows to a safe speed before sharp corners, and stops at the end of the path.
+    func longitudinalG(
+        remaining: Double,
+        cruiseSpeed: Double,
+        corner: (degrees: Double, distanceAway: Double)?,
+    ) -> Double {
+        let braking = 0.2 * standardGravity
+        // Gentle stop: brake once the stopping distance (v²/2a) reaches the end.
+        if remaining <= speed * speed / (2 * braking) + 2 {
+            return speed > 0 ? -0.2 : 0
+        }
+        if let corner {
+            // Sharper corners need slower speeds; a right angle is taken at about 5 m/s (11 mph).
+            let cornerSpeed = max(5, cruiseSpeed * (1 - corner.degrees / 110))
+            let slowingDistance = (speed * speed - cornerSpeed * cornerSpeed) / (2 * braking)
+            if speed > cornerSpeed, corner.distanceAway <= slowingDistance + 5 {
+                return -0.2
+            }
+            if speed >= cornerSpeed, corner.distanceAway < 15 {
+                return 0
+            }
+        }
+        if speed < cruiseSpeed {
+            return remaining < 6 ? 0.03 : 0.12
+        }
+        return 0
+    }
+
+    /// Sideways g that turns the car toward `offset` (meters east, north), capped at 0.35 g like a normal driver.
+    func steeringLateralG(toward offset: SIMD2<Double>) -> Double {
+        guard speed > 0.5 else { return 0 }
+        let targetCourse = atan2(offset.x, offset.y) * 180 / .pi
+        // Signed heading error in -180...180; positive means the target is to the right.
+        var error = (targetCourse - course).truncatingRemainder(dividingBy: 360)
+        if error > 180 {
+            error -= 360
+        }
+        if error < -180 {
+            error += 360
+        }
+        // Turning right is clockwise, which is negative yaw; aim to fix the error in under a second.
+        let yawRate = -error * .pi / 180 * 1.5
+        let lateral = speed * yawRate / standardGravity
+        return min(0.35, max(-0.35, lateral))
     }
 
     mutating func step(with dynamics: Dynamics) {

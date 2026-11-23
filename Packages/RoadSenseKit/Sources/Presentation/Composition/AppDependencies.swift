@@ -9,6 +9,8 @@ public struct AppDependencies: Sendable {
     public let searchPlaces: SearchPlacesUseCase
     public let planRoute: PlanRouteUseCase
     public let findRouteHotspots: FindRouteHotspotsUseCase
+    public let driveTrip: DriveTripUseCase
+    public let recoverIncompleteTrip: RecoverIncompleteTripUseCase
 
     public init(
         listTrips: ListTripsUseCase,
@@ -18,6 +20,8 @@ public struct AppDependencies: Sendable {
         searchPlaces: SearchPlacesUseCase,
         planRoute: PlanRouteUseCase,
         findRouteHotspots: FindRouteHotspotsUseCase,
+        driveTrip: DriveTripUseCase,
+        recoverIncompleteTrip: RecoverIncompleteTripUseCase,
     ) {
         self.listTrips = listTrips
         self.recordTrip = recordTrip
@@ -26,5 +30,7 @@ public struct AppDependencies: Sendable {
         self.searchPlaces = searchPlaces
         self.planRoute = planRoute
         self.findRouteHotspots = findRouteHotspots
+        self.driveTrip = driveTrip
+        self.recoverIncompleteTrip = recoverIncompleteTrip
     }
 }

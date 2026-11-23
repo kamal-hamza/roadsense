@@ -94,6 +94,22 @@ struct PreviewHotspotService: HotspotService {
     }
 }
 
+/// A trip log store that keeps nothing.
+struct PreviewTripLogStore: TripLogStore {
+    func begin(_: TripLog) async throws {}
+    func append(_: TripLogEntry) async throws {}
+    func finish(at _: Date, reason _: TripEndReason, endCoordinate _: Coordinate?) async throws {}
+    func unfinishedLog() async throws -> TripLog? {
+        nil
+    }
+}
+
+/// Alerts that stay silent in previews.
+struct PreviewDriveAlerting: DriveAlerting {
+    func prepare() async {}
+    func announce(_: DriveWarning) async {}
+}
+
 /// A hotspot cache with nothing saved.
 struct PreviewHotspotCache: HotspotCache {
     func save(_: CachedHotspotArea) async throws {}
@@ -131,6 +147,15 @@ extension Route {
             expectedTravelTime: 540,
         ),
     ].compactMap(\.self)
+}
+
+extension TripPlan {
+    nonisolated static let preview = TripPlan(
+        destination: .previewDestination,
+        route: Route.previewSamples[0],
+        hotspots: [],
+        freshness: .live,
+    )
 }
 
 extension CheckLocationAccessUseCase {
@@ -193,24 +218,32 @@ extension AppDependencies {
         let repository = PreviewTripRepository(trips: trips)
         let logStore = PreviewSensorLogStore()
         let locationServices = PreviewLocationServices(status: authorization)
+        let recordTrip = RecordTripUseCase(
+            recorder: SensorRecorder(sensorSource: PreviewSensorSource(), sensorLogStore: logStore),
+            tripRepository: repository,
+        )
+        let findRouteHotspots = FindRouteHotspotsUseCase(
+            service: PreviewHotspotService(isAvailable: hotspotsAvailable),
+            cache: PreviewHotspotCache(),
+            retryDelays: [],
+        )
+        let directions = PreviewDirections(routes: routes)
         return AppDependencies(
             listTrips: ListTripsUseCase(repository: repository),
-            recordTrip: RecordTripUseCase(
-                recorder: SensorRecorder(sensorSource: PreviewSensorSource(), sensorLogStore: logStore),
-                tripRepository: repository,
-            ),
+            recordTrip: recordTrip,
             findSensorLog: FindSensorLogUseCase(store: logStore),
             checkLocationAccess: CheckLocationAccessUseCase(locationServices: locationServices),
             searchPlaces: SearchPlacesUseCase(locationServices: locationServices, placeSearch: PreviewPlaceSearch()),
-            planRoute: PlanRouteUseCase(
-                locationServices: locationServices,
-                directions: PreviewDirections(routes: routes),
+            planRoute: PlanRouteUseCase(locationServices: locationServices, directions: directions),
+            findRouteHotspots: findRouteHotspots,
+            driveTrip: DriveTripUseCase(
+                recordTrip: recordTrip,
+                tripLogStore: PreviewTripLogStore(),
+                alerting: PreviewDriveAlerting(),
+                directions: directions,
+                findHotspots: findRouteHotspots,
             ),
-            findRouteHotspots: FindRouteHotspotsUseCase(
-                service: PreviewHotspotService(isAvailable: hotspotsAvailable),
-                cache: PreviewHotspotCache(),
-                retryDelays: [],
-            ),
+            recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: PreviewTripLogStore()),
         )
     }
 }

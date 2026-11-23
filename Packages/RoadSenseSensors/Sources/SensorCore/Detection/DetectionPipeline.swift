@@ -2,7 +2,7 @@ import Foundation
 
 /// Turns sensor readings into driving events, confirming each candidate against GPS.
 public struct DetectionPipeline: Sendable {
-    public struct Configuration: Sendable {
+    public struct Configuration: Hashable, Sendable {
         public var hardBrakeThreshold = 0.30
         public var hardBrakeMinimumDuration: TimeInterval = 0.4
         public var hardAccelerationThreshold = 0.25

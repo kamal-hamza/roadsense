@@ -11,24 +11,34 @@ struct PlanView: View {
         case hazards(to: Place, along: Route)
     }
 
+    /// A drive in progress, shown full screen over the plan.
+    private struct ActiveDrive: Identifiable {
+        let id = UUID()
+        let plan: TripPlan
+    }
+
     @State private var access: LocationAccessViewModel
     @State private var path: [Step] = []
+    @State private var activeDrive: ActiveDrive?
     @Environment(\.scenePhase) private var scenePhase
 
     private let searchPlaces: SearchPlacesUseCase
     private let planRoute: PlanRouteUseCase
     private let findHotspots: FindRouteHotspotsUseCase
+    private let driveTrip: DriveTripUseCase
 
     init(
         checkAccess: CheckLocationAccessUseCase,
         searchPlaces: SearchPlacesUseCase,
         planRoute: PlanRouteUseCase,
         findHotspots: FindRouteHotspotsUseCase,
+        driveTrip: DriveTripUseCase,
     ) {
         _access = State(initialValue: LocationAccessViewModel(checkAccess: checkAccess))
         self.searchPlaces = searchPlaces
         self.planRoute = planRoute
         self.findHotspots = findHotspots
+        self.driveTrip = driveTrip
     }
 
     var body: some View {
@@ -40,6 +50,14 @@ struct PlanView: View {
                 }
             } else {
                 LocationAccessView(viewModel: access)
+            }
+        }
+        // Full screen hides the tabs and everything else that isn't about the road.
+        .fullScreen(item: $activeDrive) { drive in
+            DriveView(plan: drive.plan, driveTrip: driveTrip) {
+                activeDrive = nil
+                // Back to the search screen, ready for the next trip.
+                path.removeAll()
             }
         }
         // Re-check on launch and whenever the app comes back, e.g. from Settings.
@@ -57,7 +75,9 @@ struct PlanView: View {
                 path.append(.hazards(to: place, along: route))
             }
         case let .hazards(place, route):
-            HotspotListView(destination: place, route: route, findHotspots: findHotspots)
+            HotspotListView(destination: place, route: route, findHotspots: findHotspots) { plan in
+                activeDrive = ActiveDrive(plan: plan)
+            }
         }
     }
 }
@@ -68,6 +88,7 @@ struct PlanView: View {
         searchPlaces: AppDependencies.preview.searchPlaces,
         planRoute: AppDependencies.preview.planRoute,
         findHotspots: AppDependencies.preview.findRouteHotspots,
+        driveTrip: AppDependencies.preview.driveTrip,
     )
 }
 
@@ -77,5 +98,6 @@ struct PlanView: View {
         searchPlaces: AppDependencies.preview.searchPlaces,
         planRoute: AppDependencies.preview.planRoute,
         findHotspots: AppDependencies.preview.findRouteHotspots,
+        driveTrip: AppDependencies.preview.driveTrip,
     )
 }

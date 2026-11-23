@@ -35,10 +35,17 @@ public actor SensorRecorder {
     public struct Options: Hashable, Sendable {
         public var logsRawSensors: Bool
         public var sensors: SensorConfiguration
+        /// Detector thresholds; apps can tighten them (e.g. a stricter hard-brake rule).
+        public var detection: DetectionPipeline.Configuration
 
-        public init(logsRawSensors: Bool = false, sensors: SensorConfiguration = SensorConfiguration()) {
+        public init(
+            logsRawSensors: Bool = false,
+            sensors: SensorConfiguration = SensorConfiguration(),
+            detection: DetectionPipeline.Configuration = DetectionPipeline.Configuration(),
+        ) {
             self.logsRawSensors = logsRawSensors
             self.sensors = sensors
+            self.detection = detection
         }
     }
 
@@ -46,14 +53,16 @@ public actor SensorRecorder {
         let id: UUID
         let startedAt: Date
         var isLogging: Bool
-        var pipeline = DetectionPipeline()
+        var pipeline: DetectionPipeline
         var odometer = TripOdometer()
         var events: [DrivingEvent] = []
         var latestSpeed: Double?
+        var latestLocation: LocationSample?
         var latestActivity: ActivitySample?
         var locationStatus: LocationStatus?
         var logBuffer: [SensorReading] = []
         var lastSnapshotAt: Date?
+        var latestReadingAt: Date?
         let continuation: AsyncStream<RecordingSnapshot>.Continuation
         var task: Task<Void, Never>?
     }
@@ -93,7 +102,13 @@ public actor SensorRecorder {
             bufferingPolicy: .bufferingNewest(1),
         )
         let id = UUID()
-        session = Session(id: id, startedAt: now(), isLogging: options.logsRawSensors, continuation: continuation)
+        session = Session(
+            id: id,
+            startedAt: now(),
+            isLogging: options.logsRawSensors,
+            pipeline: DetectionPipeline(configuration: options.detection),
+            continuation: continuation,
+        )
 
         if options.logsRawSensors {
             do {
@@ -154,6 +169,7 @@ public actor SensorRecorder {
         let newEvents = current.pipeline.process(reading)
         current.events.append(contentsOf: newEvents)
         record(reading, in: &current)
+        current.latestReadingAt = reading.timestamp
 
         var batchToLog: [SensorReading]?
         if current.isLogging {
@@ -185,6 +201,7 @@ public actor SensorRecorder {
         case let .location(location):
             session.odometer.add(location)
             session.latestSpeed = location.speed
+            session.latestLocation = location
         case let .activity(activity):
             session.latestActivity = activity
         case let .locationStatus(update):
@@ -204,7 +221,9 @@ public actor SensorRecorder {
         RecordingSnapshot(
             recordingID: session.id,
             startedAt: session.startedAt,
+            timestamp: session.latestReadingAt ?? session.startedAt,
             speed: session.latestSpeed,
+            location: session.latestLocation,
             distanceMeters: session.odometer.meters,
             motion: session.pipeline.latestMotion,
             isFrameReady: session.pipeline.isFrameReady,
