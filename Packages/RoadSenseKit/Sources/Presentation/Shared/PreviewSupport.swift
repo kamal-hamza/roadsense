@@ -178,6 +178,28 @@ extension TripPlan {
     )
 }
 
+extension TripLog {
+    /// A finished drive with two warnings and two passes, for the summary preview.
+    nonisolated static var previewFinished: TripLog {
+        var log = TripLog(startedAt: .now.addingTimeInterval(-600), startCoordinate: nil)
+        let ids = [UUID(), UUID()]
+        log.append(TripLogEntry(
+            timestamp: .now.addingTimeInterval(-500),
+            coordinate: nil,
+            event: .warningShown(hotspotIDs: ids, speed: 14),
+        ))
+        for id in ids {
+            log.append(TripLogEntry(
+                timestamp: .now.addingTimeInterval(-480),
+                coordinate: nil,
+                event: .hotspotPassed(hotspotID: id, outcome: .warned(secondsOfWarning: 9), brakedHard: false),
+            ))
+        }
+        try? log.finish(at: .now, reason: .arrived, endCoordinate: nil)
+        return log
+    }
+}
+
 extension CheckLocationAccessUseCase {
     static func preview(_ status: LocationAuthorization) -> CheckLocationAccessUseCase {
         CheckLocationAccessUseCase(locationServices: PreviewLocationServices(status: status))
@@ -265,6 +287,7 @@ extension AppDependencies {
                 preferences: PreviewPreferences(),
             ),
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: PreviewTripLogStore()),
+            submitTripFeedback: SubmitTripFeedbackUseCase(tripLogStore: PreviewTripLogStore()),
         )
     }
 }

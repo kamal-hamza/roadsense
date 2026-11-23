@@ -11,6 +11,7 @@ public struct AppDependencies: Sendable {
     public let findRouteHotspots: FindRouteHotspotsUseCase
     public let driveTrip: DriveTripUseCase
     public let recoverIncompleteTrip: RecoverIncompleteTripUseCase
+    public let submitTripFeedback: SubmitTripFeedbackUseCase
 
     public init(
         listTrips: ListTripsUseCase,
@@ -22,6 +23,7 @@ public struct AppDependencies: Sendable {
         findRouteHotspots: FindRouteHotspotsUseCase,
         driveTrip: DriveTripUseCase,
         recoverIncompleteTrip: RecoverIncompleteTripUseCase,
+        submitTripFeedback: SubmitTripFeedbackUseCase,
     ) {
         self.listTrips = listTrips
         self.recordTrip = recordTrip
@@ -32,5 +34,6 @@ public struct AppDependencies: Sendable {
         self.findRouteHotspots = findRouteHotspots
         self.driveTrip = driveTrip
         self.recoverIncompleteTrip = recoverIncompleteTrip
+        self.submitTripFeedback = submitTripFeedback
     }
 }

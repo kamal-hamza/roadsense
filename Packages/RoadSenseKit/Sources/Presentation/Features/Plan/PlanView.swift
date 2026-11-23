@@ -26,6 +26,7 @@ struct PlanView: View {
     private let planRoute: PlanRouteUseCase
     private let findHotspots: FindRouteHotspotsUseCase
     private let driveTrip: DriveTripUseCase
+    private let submitFeedback: SubmitTripFeedbackUseCase
 
     init(
         checkAccess: CheckLocationAccessUseCase,
@@ -33,12 +34,14 @@ struct PlanView: View {
         planRoute: PlanRouteUseCase,
         findHotspots: FindRouteHotspotsUseCase,
         driveTrip: DriveTripUseCase,
+        submitFeedback: SubmitTripFeedbackUseCase,
     ) {
         _access = State(initialValue: LocationAccessViewModel(checkAccess: checkAccess))
         self.searchPlaces = searchPlaces
         self.planRoute = planRoute
         self.findHotspots = findHotspots
         self.driveTrip = driveTrip
+        self.submitFeedback = submitFeedback
     }
 
     var body: some View {
@@ -54,7 +57,7 @@ struct PlanView: View {
         }
         // Full screen hides the tabs and everything else that isn't about the road.
         .fullScreen(item: $activeDrive) { drive in
-            DriveView(plan: drive.plan, driveTrip: driveTrip) {
+            DriveView(plan: drive.plan, driveTrip: driveTrip, submitFeedback: submitFeedback) {
                 activeDrive = nil
                 // Back to the search screen, ready for the next trip.
                 path.removeAll()
@@ -89,6 +92,7 @@ struct PlanView: View {
         planRoute: AppDependencies.preview.planRoute,
         findHotspots: AppDependencies.preview.findRouteHotspots,
         driveTrip: AppDependencies.preview.driveTrip,
+        submitFeedback: AppDependencies.preview.submitTripFeedback,
     )
 }
 
@@ -99,5 +103,6 @@ struct PlanView: View {
         planRoute: AppDependencies.preview.planRoute,
         findHotspots: AppDependencies.preview.findRouteHotspots,
         driveTrip: AppDependencies.preview.driveTrip,
+        submitFeedback: AppDependencies.preview.submitTripFeedback,
     )
 }
