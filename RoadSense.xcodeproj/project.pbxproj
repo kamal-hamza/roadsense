@@ -313,7 +313,7 @@
 				INFOPLIST_FILE = RoadSense/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RoadSense;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RoadSense uses your location while recording a trip to measure speed and place road events on the map.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RoadSense uses your location to plan your route, warn you before hazards ahead (including with the screen locked), and record your drive.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "RoadSense uses motion data to detect driving and to sense braking, turns, and bumps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -350,7 +350,7 @@
 				INFOPLIST_FILE = RoadSense/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RoadSense;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RoadSense uses your location while recording a trip to measure speed and place road events on the map.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RoadSense uses your location to plan your route, warn you before hazards ahead (including with the screen locked), and record your drive.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "RoadSense uses motion data to detect driving and to sense braking, turns, and bumps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
