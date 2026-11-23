@@ -19,5 +19,16 @@ services:
       timeout: 3s
       retries: 30
 
+  # One-off OpenStreetMap import (`just server-import-osm`); not started by `up`.
+  osm2pgsql:
+    image: iboates/osm2pgsql:2.1.1
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+    command: ["osm2pgsql", "--create", "--database", "postgresql://roadsense:roadsense@db:5432/roadsense", "/data/roads.osm"]
+
 volumes:
   roadsense-db:

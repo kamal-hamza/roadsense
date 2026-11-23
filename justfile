@@ -68,6 +68,13 @@ server_db_url := env("DATABASE_URL", "postgres://roadsense:roadsense@localhost:5
 server-db:
     docker compose -f server/compose.yaml up -d --wait
 
+# Import OpenStreetMap roads (default: central Seattle) so new hotspots get a real type (curve / merge).
+# Set OVERPASS_URL to use a mirror if the main Overpass server is busy.
+server-import-osm bbox="47.58,-122.37,47.64,-122.30": server-db
+    mkdir -p server/data
+    curl -fsSL -A "RoadSense-dev/0.1 (OSM road import)" "${OVERPASS_URL:-https://overpass-api.de/api/interpreter}" --data-urlencode 'data=[out:xml][timeout:180];(way["highway"]({{ bbox }});>;);out body;' -o server/data/roads.osm
+    docker compose -f server/compose.yaml run --rm osm2pgsql
+
 # Run the API server (uses PostGIS; set ROADSENSE_IN_MEMORY=1 to run without a database)
 server-run: server-db
     cd server && DATABASE_URL="{{ server_db_url }}" cargo run -p roadsense-api
