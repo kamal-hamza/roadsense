@@ -6,13 +6,20 @@ import SwiftUI
 struct HotspotListView: View {
     @State private var viewModel: HotspotListViewModel
     @Environment(\.dismiss) private var dismiss
+    private let onStart: (TripPlan) -> Void
 
-    init(destination: Place, route: Route, findHotspots: FindRouteHotspotsUseCase) {
+    init(
+        destination: Place,
+        route: Route,
+        findHotspots: FindRouteHotspotsUseCase,
+        onStart: @escaping (TripPlan) -> Void,
+    ) {
         _viewModel = State(initialValue: HotspotListViewModel(
             destination: destination,
             route: route,
             findHotspots: findHotspots,
         ))
+        self.onStart = onStart
     }
 
     var body: some View {
@@ -21,7 +28,17 @@ struct HotspotListView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
-            .task { await viewModel.load() }
+            .task {
+                await viewModel.load()
+                #if DEBUG
+                    // Dev hook for automated screenshots: `-autoStartDrive` starts driving as soon as it can.
+                    if ProcessInfo.processInfo.arguments.contains("-autoStartDrive"),
+                       case let .ready(plan) = viewModel.state
+                    {
+                        onStart(plan)
+                    }
+                #endif
+            }
     }
 
     @ViewBuilder
@@ -45,6 +62,15 @@ struct HotspotListView: View {
             }
         case let .ready(plan):
             TripPlanList(plan: plan)
+                .safeAreaInset(edge: .bottom) {
+                    Button { onStart(plan) } label: {
+                        Label("Start Drive", systemImage: "car.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .padding()
+                }
         }
     }
 }
@@ -93,7 +119,7 @@ private struct TripPlanList: View {
             destination: .previewDestination,
             route: Route.previewSamples[0],
             findHotspots: AppDependencies.preview.findRouteHotspots,
-        )
+        ) { _ in }
     }
 }
 
@@ -103,6 +129,6 @@ private struct TripPlanList: View {
             destination: .previewDestination,
             route: Route.previewSamples[0],
             findHotspots: AppDependencies.preview(hotspotsAvailable: false).findRouteHotspots,
-        )
+        ) { _ in }
     }
 }
