@@ -40,6 +40,7 @@ struct DriveTripUseCaseTests {
         readings: [SensorReading],
         alerts: RecordingAlerts,
         logStore: MemoryTripLogStore,
+        warningsEnabled: Bool = true,
     ) -> DriveTripUseCase {
         let repository = MemoryTripRepository()
         return DriveTripUseCase(
@@ -58,6 +59,7 @@ struct DriveTripUseCaseTests {
                 cache: NoHotspotCache(),
                 retryDelays: [],
             ),
+            preferences: FixedPreferences(preferences: AppPreferences(warningsEnabled: warningsEnabled)),
         )
     }
 
@@ -93,6 +95,32 @@ struct DriveTripUseCaseTests {
         #expect(passes.count == 2)
         #expect(await logStore.finishedReason == .arrived)
         #expect(await logStore.appended.count == log.entries.count)
+    }
+
+    @Test func `with warnings turned off in Settings the drive starts muted and never speaks`() async throws {
+        let drive = SyntheticDrive(
+            segments: [.parked(seconds: 2), .followPath(plan.route.points, cruiseSpeed: 13), .parked(seconds: 35)],
+            startCoordinate: Self.origin,
+        )
+        let alerts = RecordingAlerts()
+        let driveTrip = makeUseCase(
+            readings: drive.readings(),
+            alerts: alerts,
+            logStore: MemoryTripLogStore(),
+            warningsEnabled: false,
+        )
+
+        var finalState: DriveState?
+        for await state in try await driveTrip.start(plan) {
+            finalState = state
+        }
+
+        guard case let .ended(log) = finalState else {
+            Issue.record("Expected the drive to end, got \(String(describing: finalState))")
+            return
+        }
+        #expect(log.entries.first?.event == .muted)
+        #expect(await alerts.warnings.isEmpty)
     }
 
     @Test func `the driver can end early, and can't start a second drive meanwhile`() async throws {
@@ -208,6 +236,13 @@ private actor MemoryTripLogStore: TripLogStore {
     func unfinishedLog() async throws -> TripLog? {
         unfinished
     }
+
+    func finishedLogs() async throws -> [TripLog] {
+        []
+    }
+
+    func saveFinished(_: TripLog) async throws {}
+    func deleteFinished(id _: TripLog.ID) async throws {}
 }
 
 private actor MemoryTripRepository: TripRepository {
@@ -248,4 +283,14 @@ private struct NoHotspotCache: HotspotCache {
     func areas() async throws -> [CachedHotspotArea] {
         []
     }
+}
+
+private struct FixedPreferences: UserPreferences {
+    let preferences: AppPreferences
+
+    func load() async -> AppPreferences {
+        preferences
+    }
+
+    func save(_: AppPreferences) async {}
 }

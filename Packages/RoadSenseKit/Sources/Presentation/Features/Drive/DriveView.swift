@@ -11,16 +11,22 @@ struct DriveView: View {
     @State private var viewModel: DriveViewModel
     @State private var confirmsEnd = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let submitFeedback: SubmitTripFeedbackUseCase
     private let onDone: () -> Void
 
-    init(plan: TripPlan, driveTrip: DriveTripUseCase, onDone: @escaping () -> Void) {
+    init(
+        plan: TripPlan,
+        driveTrip: DriveTripUseCase,
+        submitFeedback: SubmitTripFeedbackUseCase,
+        onDone: @escaping () -> Void,
+    ) {
         _viewModel = State(initialValue: DriveViewModel(plan: plan, driveTrip: driveTrip))
+        self.submitFeedback = submitFeedback
         self.onDone = onDone
     }
 
     var body: some View {
         content
-            .padding()
             .task { await viewModel.run() }
         #if os(iOS)
             // Keep the screen on while driving, like a navigation app; restore it when the drive screen goes.
@@ -43,8 +49,9 @@ struct DriveView: View {
                 Spacer()
                 controls(isMuted: update.isMuted)
             }
+            .padding()
         case let .ended(log):
-            DriveCompleteView(summary: TripSummary(log: log), onDone: onDone)
+            TripSummaryView(log: log, plan: viewModel.plan, submitFeedback: submitFeedback, onDone: onDone)
         case .failed:
             ContentUnavailableView {
                 Label("Couldn't Start the Drive", systemImage: "exclamationmark.triangle")
@@ -104,27 +111,10 @@ private struct SpeedReadout: View {
     }
 }
 
-/// Shown when the drive ends. The full summary and feedback come in M5.
-private struct DriveCompleteView: View {
-    let summary: TripSummary
-    let onDone: () -> Void
-
-    var body: some View {
-        ContentUnavailableView {
-            Label("Drive Complete", systemImage: "flag.checkered")
-        } description: {
-            VStack {
-                Text("^[\(summary.hotspotsPassed) hotspot](inflect: true) passed")
-                Text("^[\(summary.warningsGiven) warning](inflect: true) given")
-            }
-        } actions: {
-            Button("Done", action: onDone)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-        }
-    }
-}
-
 #Preview("Drive") {
-    DriveView(plan: .preview, driveTrip: AppDependencies.preview.driveTrip) {}
+    DriveView(
+        plan: .preview,
+        driveTrip: AppDependencies.preview.driveTrip,
+        submitFeedback: AppDependencies.preview.submitTripFeedback,
+    ) {}
 }

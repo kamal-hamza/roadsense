@@ -30,6 +30,7 @@ public actor DriveTripUseCase {
     private let alerting: any DriveAlerting
     private let directions: any DirectionsProviding
     private let findHotspots: FindRouteHotspotsUseCase
+    private let preferences: any UserPreferences
     private let configuration: DriveController.Configuration
     private var session: Session?
 
@@ -39,8 +40,10 @@ public actor DriveTripUseCase {
         alerting: any DriveAlerting,
         directions: any DirectionsProviding,
         findHotspots: FindRouteHotspotsUseCase,
+        preferences: any UserPreferences,
     ) {
         self.recordTrip = recordTrip
+        self.preferences = preferences
         self.tripLogStore = tripLogStore
         self.alerting = alerting
         self.directions = directions
@@ -70,6 +73,10 @@ public actor DriveTripUseCase {
             continuation: continuation,
         )
         try await tripLogStore.begin(log)
+        // Warnings turned off in Settings means the drive starts muted; it's logged like a mute (success metric 2).
+        if await !preferences.load().warningsEnabled {
+            await setMuted(true)
+        }
         // Ask for alert permissions alongside the drive, not before it: sensors and speech don't depend on the answer.
         let alerting = alerting
         session?.prepareTask = Task { await alerting.prepare() }

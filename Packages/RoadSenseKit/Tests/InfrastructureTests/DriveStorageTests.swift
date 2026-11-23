@@ -10,7 +10,7 @@ struct FileTripLogStoreTests {
     private let here = Coordinate(latitude: 47.6, longitude: -122.3)
 
     private func temporaryDirectory() -> URL {
-        FileManager.default.temporaryDirectory.appending(path: "FileTripLogStoreTests-\(UUID().uuidString)")
+        FileManager.default.temporaryDirectory.appending(path: "File TripLogStore Tests-\(UUID().uuidString)")
     }
 
     private func entry(_ seconds: TimeInterval) -> TripLogEntry {
@@ -64,6 +64,32 @@ struct FileTripLogStoreTests {
         let saved = try JSONDecoder().decode(TripLog.self, from: Data(contentsOf: store.finishedLogURL(id: log.id)))
         #expect(saved.endReason == .arrived)
         #expect(saved.entries.count == 1)
+    }
+
+    @Test func `finished logs can be listed, replaced, and deleted`() async throws {
+        let store = FileTripLogStore(directory: temporaryDirectory())
+        let first = TripLog(startedAt: start, startCoordinate: here)
+        let second = TripLog(startedAt: start.addingTimeInterval(3600), startCoordinate: here)
+        for log in [second, first] {
+            try await store.begin(log)
+            try await store.finish(at: log.startedAt.addingTimeInterval(60), reason: .arrived, endCoordinate: here)
+        }
+        var withFeedback = try #require(try await store.finishedLogs().first)
+        withFeedback.append(TripLogEntry(
+            timestamp: start.addingTimeInterval(90),
+            coordinate: nil,
+            event: .feedback(.helpful),
+        ))
+
+        try await store.saveFinished(withFeedback)
+        let afterSave = try await store.finishedLogs()
+        try await store.deleteFinished(id: first.id)
+        try await store.deleteFinished(id: first.id)
+        let afterDelete = try await store.finishedLogs()
+
+        #expect(afterSave.map(\.id) == [first.id, second.id])
+        #expect(afterSave.first?.entries.last?.event == .feedback(.helpful))
+        #expect(afterDelete.map(\.id) == [second.id])
     }
 
     @Test func `nothing is open on a fresh install`() async throws {

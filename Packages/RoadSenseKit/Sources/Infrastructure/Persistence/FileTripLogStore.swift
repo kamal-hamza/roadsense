@@ -54,11 +54,7 @@ public actor FileTripLogStore: TripLogStore {
     public func finish(at time: Date, reason: TripEndReason, endCoordinate: Coordinate?) throws {
         guard var log = try openLog ?? readOpenLog() else { return }
         try log.finish(at: time, reason: reason, endCoordinate: endCoordinate)
-        try JSONEncoder().encode(log)
-            .write(
-                to: finishedLogURL(id: log.id),
-                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication],
-            )
+        try saveFinished(log)
         try FileManager.default.removeItem(at: openLogURL)
         openLog = nil
     }
@@ -67,9 +63,34 @@ public actor FileTripLogStore: TripLogStore {
         try openLog ?? readOpenLog()
     }
 
+    public func finishedLogs() throws -> [TripLog] {
+        guard FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)) else { return [] }
+        let decoder = JSONDecoder()
+        return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" }
+            .map { try decoder.decode(TripLog.self, from: Data(contentsOf: $0)) }
+            .sorted { $0.startedAt < $1.startedAt }
+    }
+
+    public func saveFinished(_ log: TripLog) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(log)
+            .write(
+                to: finishedLogURL(id: log.id),
+                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication],
+            )
+    }
+
+    public func deleteFinished(id: TripLog.ID) throws {
+        let url = finishedLogURL(id: id)
+        // Deleting twice (e.g. a retried upload) is fine.
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return }
+        try FileManager.default.removeItem(at: url)
+    }
+
     /// Rebuilds the open log from its file, skipping a last line cut off by a crash.
     private func readOpenLog() throws -> TripLog? {
-        guard FileManager.default.fileExists(atPath: openLogURL.path()) else { return nil }
+        guard FileManager.default.fileExists(atPath: openLogURL.path(percentEncoded: false)) else { return nil }
         let decoder = JSONDecoder()
         var log: TripLog?
         for line in try Data(contentsOf: openLogURL).split(separator: UInt8(ascii: "\n")) {

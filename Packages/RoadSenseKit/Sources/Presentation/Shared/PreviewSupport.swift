@@ -102,12 +102,57 @@ struct PreviewTripLogStore: TripLogStore {
     func unfinishedLog() async throws -> TripLog? {
         nil
     }
+
+    func finishedLogs() async throws -> [TripLog] {
+        []
+    }
+
+    func saveFinished(_: TripLog) async throws {}
+    func deleteFinished(id _: TripLog.ID) async throws {}
 }
 
 /// Alerts that stay silent in previews.
 struct PreviewDriveAlerting: DriveAlerting {
     func prepare() async {}
     func announce(_: DriveWarning) async {}
+}
+
+/// An upload queue that's always empty.
+struct PreviewUploadQueue: UploadQueue {
+    func enqueue(_: UploadBatch) async throws {}
+    func pending() async throws -> [UploadBatch] {
+        []
+    }
+
+    func remove(id _: UploadBatch.ID) async throws {}
+}
+
+/// An uploader that accepts everything and sends nothing.
+struct PreviewEventUploader: EventUploader {
+    func upload(_: UploadBatch) async -> UploadResult {
+        .accepted
+    }
+
+    func registerDevice(_: DeviceID) async throws {}
+}
+
+struct PreviewDeviceIdentity: DeviceIdentityStore {
+    func deviceID() async throws -> DeviceID {
+        DeviceID(rawValue: UUID())
+    }
+}
+
+/// Settings kept in memory for previews.
+actor PreviewPreferences: UserPreferences {
+    private var stored = AppPreferences()
+
+    func load() async -> AppPreferences {
+        stored
+    }
+
+    func save(_ preferences: AppPreferences) async {
+        stored = preferences
+    }
 }
 
 /// A hotspot cache with nothing saved.
@@ -156,6 +201,28 @@ extension TripPlan {
         hotspots: [],
         freshness: .live,
     )
+}
+
+extension TripLog {
+    /// A finished drive with two warnings and two passes, for the summary preview.
+    nonisolated static var previewFinished: TripLog {
+        var log = TripLog(startedAt: .now.addingTimeInterval(-600), startCoordinate: nil)
+        let ids = [UUID(), UUID()]
+        log.append(TripLogEntry(
+            timestamp: .now.addingTimeInterval(-500),
+            coordinate: nil,
+            event: .warningShown(hotspotIDs: ids, speed: 14),
+        ))
+        for id in ids {
+            log.append(TripLogEntry(
+                timestamp: .now.addingTimeInterval(-480),
+                coordinate: nil,
+                event: .hotspotPassed(hotspotID: id, outcome: .warned(secondsOfWarning: 9), brakedHard: false),
+            ))
+        }
+        try? log.finish(at: .now, reason: .arrived, endCoordinate: nil)
+        return log
+    }
 }
 
 extension CheckLocationAccessUseCase {
@@ -228,6 +295,7 @@ extension AppDependencies {
             retryDelays: [],
         )
         let directions = PreviewDirections(routes: routes)
+        let preferences = PreviewPreferences()
         return AppDependencies(
             listTrips: ListTripsUseCase(repository: repository),
             recordTrip: recordTrip,
@@ -242,8 +310,18 @@ extension AppDependencies {
                 alerting: PreviewDriveAlerting(),
                 directions: directions,
                 findHotspots: findRouteHotspots,
+                preferences: preferences,
             ),
             recoverIncompleteTrip: RecoverIncompleteTripUseCase(tripLogStore: PreviewTripLogStore()),
+            submitTripFeedback: SubmitTripFeedbackUseCase(tripLogStore: PreviewTripLogStore()),
+            managePreferences: ManagePreferencesUseCase(preferences: preferences),
+            uploadPendingEvents: UploadPendingEventsUseCase(
+                tripLogStore: PreviewTripLogStore(),
+                queue: PreviewUploadQueue(),
+                uploader: PreviewEventUploader(),
+                deviceIdentity: PreviewDeviceIdentity(),
+                preferences: preferences,
+            ),
         )
     }
 }

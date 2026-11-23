@@ -31,6 +31,7 @@ struct DriveViewModelTests {
             alerting: SilentAlerting(),
             directions: NoDirections(),
             findHotspots: FindRouteHotspotsUseCase(service: NoHotspots(), cache: NoHotspotCache(), retryDelays: []),
+            preferences: DefaultPreferences(),
         )
         return DriveViewModel(plan: plan, driveTrip: driveTrip)
     }
@@ -121,6 +122,13 @@ private struct NoTripLogStore: TripLogStore {
     func unfinishedLog() async throws -> TripLog? {
         nil
     }
+
+    func finishedLogs() async throws -> [TripLog] {
+        []
+    }
+
+    func saveFinished(_: TripLog) async throws {}
+    func deleteFinished(id _: TripLog.ID) async throws {}
 }
 
 private struct SilentAlerting: DriveAlerting {
@@ -145,4 +153,12 @@ private struct NoHotspotCache: HotspotCache {
     func areas() async throws -> [CachedHotspotArea] {
         []
     }
+}
+
+private struct DefaultPreferences: UserPreferences {
+    func load() async -> AppPreferences {
+        AppPreferences()
+    }
+
+    func save(_: AppPreferences) async {}
 }

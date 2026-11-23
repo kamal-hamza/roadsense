@@ -21,7 +21,7 @@ public actor FileSensorLogStore: SensorLogStore {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = fileURL(recordingID: recordingID)
         FileManager.default.createFile(
-            atPath: url.path(),
+            atPath: url.path(percentEncoded: false),
             contents: nil,
             // Writable while the phone is locked during a drive ("complete" protection isn't).
             attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
@@ -47,7 +47,7 @@ public actor FileSensorLogStore: SensorLogStore {
 
     public func logURL(recordingID: UUID) -> URL? {
         let url = fileURL(recordingID: recordingID)
-        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
+        return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
     }
 
     private func fileURL(recordingID: UUID) -> URL {

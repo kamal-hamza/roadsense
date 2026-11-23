@@ -7,7 +7,7 @@ import Testing
 struct FileTripRepositoryTests {
     @Test func `persists trips across instances`() async throws {
         let fileURL = FileManager.default.temporaryDirectory
-            .appending(path: "FileTripRepositoryTests-\(UUID().uuidString)/trips.json")
+            .appending(path: "File TripRepository Tests-\(UUID().uuidString)/trips.json")
         let event = DrivingEvent(
             kind: .bump,
             timestamp: .now,

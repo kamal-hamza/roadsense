@@ -14,7 +14,8 @@ private func northRoute(length: Double) throws -> Route {
 
 struct FileHotspotCacheTests {
     private func temporaryFile() -> URL {
-        FileManager.default.temporaryDirectory.appending(path: "FileHotspotCacheTests-\(UUID().uuidString)/areas.json")
+        FileManager.default.temporaryDirectory
+            .appending(path: "File HotspotCache Tests-\(UUID().uuidString)/areas.json")
     }
 
     private func area(savedAt seconds: TimeInterval) throws -> CachedHotspotArea {

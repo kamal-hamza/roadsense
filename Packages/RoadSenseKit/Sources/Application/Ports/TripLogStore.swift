@@ -15,4 +15,13 @@ public protocol TripLogStore: Sendable {
 
     /// A log that was started but never finished (the app was closed mid-drive), if any.
     func unfinishedLog() async throws -> TripLog?
+
+    /// Finished logs waiting to be turned into uploads, oldest first.
+    func finishedLogs() async throws -> [TripLog]
+
+    /// Replaces a finished log, e.g. after the driver's feedback is added.
+    func saveFinished(_ log: TripLog) async throws
+
+    /// Removes a finished log once its events are queued for upload.
+    func deleteFinished(id: TripLog.ID) async throws
 }

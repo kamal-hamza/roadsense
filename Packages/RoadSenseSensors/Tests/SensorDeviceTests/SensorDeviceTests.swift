@@ -66,7 +66,7 @@ struct ReplaySensorSourceTests {
 }
 
 private func temporaryDirectory() -> URL {
-    FileManager.default.temporaryDirectory.appending(path: "SensorDeviceTests-\(UUID().uuidString)")
+    FileManager.default.temporaryDirectory.appending(path: "Sensor Device Tests-\(UUID().uuidString)")
 }
 
 private extension SensorReading {
