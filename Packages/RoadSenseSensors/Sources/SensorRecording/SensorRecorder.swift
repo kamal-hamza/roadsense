@@ -62,6 +62,7 @@ public actor SensorRecorder {
         var locationStatus: LocationStatus?
         var logBuffer: [SensorReading] = []
         var lastSnapshotAt: Date?
+        var latestReadingAt: Date?
         let continuation: AsyncStream<RecordingSnapshot>.Continuation
         var task: Task<Void, Never>?
     }
@@ -168,6 +169,7 @@ public actor SensorRecorder {
         let newEvents = current.pipeline.process(reading)
         current.events.append(contentsOf: newEvents)
         record(reading, in: &current)
+        current.latestReadingAt = reading.timestamp
 
         var batchToLog: [SensorReading]?
         if current.isLogging {
@@ -219,6 +221,7 @@ public actor SensorRecorder {
         RecordingSnapshot(
             recordingID: session.id,
             startedAt: session.startedAt,
+            timestamp: session.latestReadingAt ?? session.startedAt,
             speed: session.latestSpeed,
             location: session.latestLocation,
             distanceMeters: session.odometer.meters,

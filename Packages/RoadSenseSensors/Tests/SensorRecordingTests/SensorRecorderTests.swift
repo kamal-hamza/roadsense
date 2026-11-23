@@ -44,6 +44,8 @@ struct SensorRecorderTests {
 
         let location = try #require(lastSnapshot?.location)
         #expect(location.speed != nil)
+        // The last snapshot is stamped with the last reading's sensor time, not the wall clock.
+        #expect(lastSnapshot?.timestamp == drive.readings().last?.timestamp)
     }
 
     @Test func `uses the detection thresholds it's given`() async throws {
