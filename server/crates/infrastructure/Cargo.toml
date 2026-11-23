@@ -1,0 +1,21 @@
+# Port implementations: PostGIS, in-memory store, rate limiter, OSM road network.
+[package]
+name = "roadsense-infrastructure"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+roadsense-domain.workspace = true
+roadsense-application.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

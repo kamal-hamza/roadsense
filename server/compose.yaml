@@ -1,0 +1,34 @@
+# Local PostgreSQL + PostGIS for the RoadSense server. Start with `just server-db`.
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    # The official image is x86 only; Docker runs it under emulation on Apple Silicon, which is fine for dev.
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: roadsense
+      POSTGRES_PASSWORD: roadsense
+      POSTGRES_DB: roadsense
+    ports:
+      - "54329:5432"
+    volumes:
+      - roadsense-db:/var/lib/postgresql/data
+    healthcheck:
+      # Over TCP: the image's temporary init server only listens on a socket, so this waits for the real one.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U roadsense -d roadsense"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # One-off OpenStreetMap import (`just server-import-osm`); not started by `up`.
+  osm2pgsql:
+    image: iboates/osm2pgsql:2.1.1
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+    command: ["osm2pgsql", "--create", "--database", "postgresql://roadsense:roadsense@db:5432/roadsense", "/data/roads.osm"]
+
+volumes:
+  roadsense-db:

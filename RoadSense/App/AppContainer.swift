@@ -14,7 +14,9 @@ enum AppContainer {
         let locationServices = makeLocationServices()
         let recordTrip = RecordTripUseCase(recorder: recorder, tripRepository: tripRepository)
         let directions = MapKitDirections()
-        let findRouteHotspots = FindRouteHotspotsUseCase(service: makeHotspotService(), cache: FileHotspotCache())
+        let deviceIdentity = KeychainDeviceIdentityStore()
+        let backend = makeBackend(deviceIdentity: deviceIdentity)
+        let findRouteHotspots = FindRouteHotspotsUseCase(service: backend.hotspots, cache: FileHotspotCache())
         let tripLogStore = FileTripLogStore()
         let preferences = UserDefaultsPreferences()
 
@@ -40,8 +42,8 @@ enum AppContainer {
             uploadPendingEvents: UploadPendingEventsUseCase(
                 tripLogStore: tripLogStore,
                 queue: FileUploadQueue(),
-                uploader: makeEventUploader(),
-                deviceIdentity: KeychainDeviceIdentityStore(),
+                uploader: backend.uploader,
+                deviceIdentity: deviceIdentity,
                 preferences: preferences,
             ),
         )
@@ -58,17 +60,31 @@ enum AppContainer {
         #endif
     }
 
-    /// Demo hotspots until the Rust server exists (M6). `-backendOffline` simulates no connection.
-    private static func makeHotspotService() -> any HotspotService {
-        DemoHotspotService(isOffline: isBackendOffline)
+    /// The RoadSense server when one is configured (Debug: the dev server on this Mac), otherwise demo data.
+    private static func makeBackend(
+        deviceIdentity: any DeviceIdentityStore,
+    ) -> (hotspots: any HotspotService, uploader: any EventUploader) {
+        guard let baseURL = apiBaseURL, !isBackendOffline else {
+            return (DemoHotspotService(isOffline: isBackendOffline), DemoEventUploader(isOffline: isBackendOffline))
+        }
+        let client = APIClient(baseURL: baseURL)
+        return (HTTPHotspotService(client: client, deviceIdentity: deviceIdentity), HTTPEventUploader(client: client))
     }
 
-    /// Demo uploads until the Rust server exists (M6). `-backendOffline` simulates no connection.
-    private static func makeEventUploader() -> any EventUploader {
-        DemoEventUploader(isOffline: isBackendOffline)
+    /// From the ROADSENSE_API_BASE_URL build setting (via Info.plist). `-demoBackend` (debug only) ignores it.
+    private static var apiBaseURL: URL? {
+        #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-demoBackend") {
+                return nil
+            }
+        #endif
+        guard let text = Bundle.main.object(forInfoDictionaryKey: "RSAPIBaseURL") as? String, !text.isEmpty else {
+            return nil
+        }
+        return URL(string: text)
     }
 
-    /// Debug-only switch that makes the demo backend act unreachable, to try the offline paths.
+    /// Debug-only switch that makes the backend act unreachable (using the demo services), to try the offline paths.
     private static var isBackendOffline: Bool {
         #if DEBUG
             ProcessInfo.processInfo.arguments.contains("-backendOffline")

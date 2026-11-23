@@ -58,7 +58,42 @@ format:
     swiftlint lint --fix --quiet
 
 # Format, lint, and test (run before calling a change done)
-check: format lint test-sensors test
+check: format lint test-sensors test server-format server-lint server-test
+
+# --- Backend (server/) ---
+
+server_db_url := env("DATABASE_URL", "postgres://roadsense:roadsense@localhost:54329/roadsense")
+
+# Start the local PostGIS database (needs Docker running)
+server-db:
+    docker compose -f server/compose.yaml up -d --wait
+
+# Import OpenStreetMap roads (default: central Seattle) so new hotspots get a real type (curve / merge).
+# Set OVERPASS_URL to use a mirror if the main Overpass server is busy.
+server-import-osm bbox="47.58,-122.37,47.64,-122.30": server-db
+    mkdir -p server/data
+    curl -fsSL -A "RoadSense-dev/0.1 (OSM road import)" "${OVERPASS_URL:-https://overpass-api.de/api/interpreter}" --data-urlencode 'data=[out:xml][timeout:180];(way["highway"]({{ bbox }});>;);out body;' -o server/data/roads.osm
+    docker compose -f server/compose.yaml run --rm osm2pgsql
+
+# Run the API server (uses PostGIS; set ROADSENSE_IN_MEMORY=1 to run without a database)
+server-run: server-db
+    cd server && DATABASE_URL="{{ server_db_url }}" cargo run -p roadsense-api
+
+# Run the server's unit tests (no database needed)
+server-test:
+    cd server && cargo test --workspace --quiet
+
+# Run the server's PostGIS integration tests (starts the database)
+server-test-db: server-db
+    cd server && DATABASE_URL="{{ server_db_url }}" cargo test --workspace --quiet -- --ignored
+
+# Check server formatting and lints
+server-lint:
+    cd server && cargo fmt --check && cargo clippy --workspace --all-targets --quiet -- -D warnings
+
+# Auto-format server code
+server-format:
+    cd server && cargo fmt
 
 # Remove build artifacts
 clean:
