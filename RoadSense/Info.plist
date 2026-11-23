@@ -13,5 +13,14 @@
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<!-- RoadSense server, from the ROADSENSE_API_BASE_URL build setting. Empty means the app uses demo data. -->
+	<key>RSAPIBaseURL</key>
+	<string>$(ROADSENSE_API_BASE_URL)</string>
+	<!-- Plain HTTP only to local hosts (the dev server on this Mac); everything else stays HTTPS. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
