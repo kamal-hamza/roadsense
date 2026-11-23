@@ -2,6 +2,8 @@
 services:
   db:
     image: postgis/postgis:17-3.5
+    # The official image is x86 only; Docker runs it under emulation on Apple Silicon, which is fine for dev.
+    platform: linux/amd64
     environment:
       POSTGRES_USER: roadsense
       POSTGRES_PASSWORD: roadsense
@@ -11,7 +13,8 @@ services:
     volumes:
       - roadsense-db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U roadsense"]
+      # Over TCP: the image's temporary init server only listens on a socket, so this waits for the real one.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U roadsense -d roadsense"]
       interval: 2s
       timeout: 3s
       retries: 30
