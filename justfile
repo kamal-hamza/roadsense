@@ -79,6 +79,24 @@ server-import-osm bbox="47.58,-122.37,47.64,-122.30": server-db
 server-run: server-db
     cd server && DATABASE_URL="{{ server_db_url }}" cargo run -p roadsense-api
 
+# Share the running server with your own devices over Tailscale (HTTPS, works on cellular). Needs the
+# Tailscale app signed in, with MagicDNS and HTTPS certificates enabled for your tailnet.
+server-share:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ts="$(command -v tailscale || echo /Applications/Tailscale.app/Contents/MacOS/Tailscale)"
+    "$ts" serve --bg http://localhost:8080
+    host="$("$ts" status --json | python3 -c 'import json, sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
+    echo "Server shared at https://$host"
+    echo "On the phone: Settings > Debug > Server > paste that address > Save, then reopen RoadSense."
+
+# Stop sharing the server over Tailscale
+server-unshare:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ts="$(command -v tailscale || echo /Applications/Tailscale.app/Contents/MacOS/Tailscale)"
+    "$ts" serve reset
+
 # Run the server's unit tests (no database needed)
 server-test:
     cd server && cargo test --workspace --quiet

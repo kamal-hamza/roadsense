@@ -142,6 +142,15 @@ struct PreviewDeviceIdentity: DeviceIdentityStore {
     }
 }
 
+/// No server address override.
+struct PreviewServerAddressStore: ServerAddressStore {
+    func load() async -> URL? {
+        nil
+    }
+
+    func save(_: URL?) async {}
+}
+
 /// Settings kept in memory for previews.
 actor PreviewPreferences: UserPreferences {
     private var stored = AppPreferences()
@@ -322,6 +331,7 @@ extension AppDependencies {
                 deviceIdentity: PreviewDeviceIdentity(),
                 preferences: preferences,
             ),
+            manageServerAddress: ManageServerAddressUseCase(store: PreviewServerAddressStore()),
         )
     }
 }

@@ -34,7 +34,11 @@ public struct RootView: View {
             }
             Tab("Settings", systemImage: "gearshape", value: TabID.settings) {
                 NavigationStack {
-                    SettingsView(recordTrip: dependencies.recordTrip, managePreferences: dependencies.managePreferences)
+                    SettingsView(
+                        recordTrip: dependencies.recordTrip,
+                        managePreferences: dependencies.managePreferences,
+                        manageServerAddress: dependencies.manageServerAddress,
+                    )
                 }
             }
         }
