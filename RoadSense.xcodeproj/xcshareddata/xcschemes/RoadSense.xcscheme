@@ -83,6 +83,39 @@
                ReferencedContainer = "container:Packages/RoadSenseKit">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "SensorCoreTests"
+               BuildableName = "SensorCoreTests"
+               BlueprintName = "SensorCoreTests"
+               ReferencedContainer = "container:Packages/RoadSenseSensors">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "SensorRecordingTests"
+               BuildableName = "SensorRecordingTests"
+               BlueprintName = "SensorRecordingTests"
+               ReferencedContainer = "container:Packages/RoadSenseSensors">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "SensorDeviceTests"
+               BuildableName = "SensorDeviceTests"
+               BlueprintName = "SensorDeviceTests"
+               ReferencedContainer = "container:Packages/RoadSenseSensors">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

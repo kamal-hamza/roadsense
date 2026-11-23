@@ -28,9 +28,13 @@ open:
 build:
     {{ xcodebuild }} -destination "{{ destination }}" build | xcbeautify
 
-# Run unit tests on the iOS Simulator
+# Run all tests (both packages + app) on the iOS Simulator
 test:
     {{ xcodebuild }} -destination "{{ destination }}" test | xcbeautify
+
+# Run the sensor package's tests on the Mac (fast; no simulator)
+test-sensors:
+    cd Packages/RoadSenseSensors && swift test --quiet
 
 # Build, install, and launch the app in the Simulator
 run: build
@@ -54,7 +58,7 @@ format:
     swiftlint lint --fix --quiet
 
 # Format, lint, and test (run before calling a change done)
-check: format lint test
+check: format lint test-sensors test
 
 # Remove build artifacts
 clean:

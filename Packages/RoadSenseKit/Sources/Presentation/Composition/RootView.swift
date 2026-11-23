@@ -9,8 +9,17 @@ public struct RootView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            TripListView(listTrips: dependencies.listTrips)
+        TabView {
+            Tab("Record", systemImage: "record.circle") {
+                NavigationStack {
+                    RecordingView(recordTrip: dependencies.recordTrip)
+                }
+            }
+            Tab("Trips", systemImage: "car") {
+                NavigationStack {
+                    TripListView(listTrips: dependencies.listTrips, findSensorLog: dependencies.findSensorLog)
+                }
+            }
         }
     }
 }

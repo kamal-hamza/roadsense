@@ -12,6 +12,7 @@ struct TripRow: View {
             HStack {
                 Text(trip.startedAt, format: .dateTime.month().day().hour().minute())
                 Spacer()
+                Text("^[\(trip.events.count) event](inflect: true)")
                 Text(trip.distance, format: .measurement(width: .abbreviated, usage: .road))
             }
             .font(.subheadline)

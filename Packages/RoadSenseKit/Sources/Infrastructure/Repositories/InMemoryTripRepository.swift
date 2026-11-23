@@ -1,10 +1,7 @@
 import Application
 import Domain
 
-/// Keeps trips in memory for the lifetime of the process.
-///
-/// Placeholder until a persistent store (e.g. SwiftData) is added. Swap it in the
-/// composition root (`RoadSense/App/AppContainer.swift`) without touching other layers.
+/// Keeps trips in memory for the lifetime of the process (tests and placeholders).
 public actor InMemoryTripRepository: TripRepository {
     private var tripsByID: [Trip.ID: Trip]
 

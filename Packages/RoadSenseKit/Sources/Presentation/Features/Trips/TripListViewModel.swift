@@ -20,7 +20,7 @@ final class TripListViewModel {
         self.listTrips = listTrips
     }
 
-    /// Loads trips and updates `state`.
+    /// Loads trips, most recent first, keeping the current list visible while reloading.
     func load() async {
         do {
             state = try await .loaded(listTrips())

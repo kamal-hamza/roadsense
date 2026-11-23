@@ -4,10 +4,14 @@ included:
   - Packages/RoadSenseKit/Sources
   - Packages/RoadSenseKit/Tests
   - Packages/RoadSenseKit/Package.swift
+  - Packages/RoadSenseSensors/Sources
+  - Packages/RoadSenseSensors/Tests
+  - Packages/RoadSenseSensors/Package.swift
 excluded:
   - build
   - DerivedData
   - Packages/RoadSenseKit/.build
+  - Packages/RoadSenseSensors/.build
 
 # SwiftFormat owns formatting; avoid fighting it.
 disabled_rules:
@@ -20,6 +24,15 @@ opt_in_rules:
   - sorted_first_last
   - toggle_bool
   - unused_optional_binding
+
+# Math-heavy sensor code uses conventional short names (x, y, dt).
+identifier_name:
+  excluded: [id, x, y, z, xs, ys, dt, up, to, at, g]
+
+# Domain value types (events, samples) have one initializer parameter per field.
+function_parameter_count:
+  warning: 10
+  error: 12
 
 line_length:
   warning: 120
@@ -34,12 +47,28 @@ line_length:
 # -----------------------------------------------------------------------------
 custom_rules:
   core_layers_foundation_only:
-    name: "Domain/Application import Foundation only"
+    name: "Domain/Application import Foundation and pure modules only"
     included: ".*/Sources/(Domain|Application)/.*\\.swift$"
-    regex: "^\\s*(@testable\\s+)?import\\s+(?!(Foundation|Domain)\\b)\\w+"
+    regex: "^\\s*(@testable\\s+)?import\\s+(?!(Foundation|Domain|SensorCore|SensorRecording)\\b)\\w+"
     message: >-
       Domain and Application must stay framework-free. Define a port (protocol)
       in Application and implement it in Infrastructure instead.
+    severity: error
+  sensor_core_foundation_only:
+    name: "Pure sensor modules import Foundation only"
+    included: ".*/Sources/(SensorCore|SensorRecording|DriveSimulation)/.*\\.swift$"
+    regex: "^\\s*(@testable\\s+)?import\\s+(?!(Foundation|SensorCore|SensorRecording)\\b)\\w+"
+    message: >-
+      SensorCore, SensorRecording, and DriveSimulation must stay pure so they test
+      on the Mac with `swift test`. Apple sensor APIs belong in SensorDevice.
+    severity: error
+  device_access_in_composition_root_only:
+    name: "Only the composition root uses SensorDevice"
+    included: ".*/Packages/RoadSenseKit/Sources/.*\\.swift$"
+    regex: "^\\s*import\\s+(SensorDevice|CoreMotion|CoreLocation)\\b"
+    message: >-
+      Live sensors are created in RoadSense/App/AppContainer.swift. Layers use the
+      SensorSource / SensorLogStore ports from SensorRecording.
     severity: error
   presentation_no_persistence:
     name: "No persistence frameworks in Presentation"
