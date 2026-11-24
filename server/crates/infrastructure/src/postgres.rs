@@ -15,14 +15,17 @@ use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::{Executor, Row};
 use uuid::Uuid;
 
-use crate::codes::{event_code, kind_code, kind_from_code, outcome_code, status_code, status_from_code};
+use crate::codes::{
+    event_code, kind_code, kind_from_code, outcome_code, source_code, source_from_code, status_code, status_from_code,
+};
 
 /// Embedded migrations from server/migrations.
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
 
 /// Columns selected for every hotspot query, in the order `hotspot_from_row` reads them.
 const HOTSPOT_COLUMNS: &str = "h.id, h.kind, h.status, ST_Y(h.location::geometry) AS latitude, \
-    ST_X(h.location::geometry) AS longitude, h.bearing, h.created_at, h.flagged_for_review";
+    ST_X(h.location::geometry) AS longitude, h.bearing, h.created_at, h.flagged_for_review, h.source, \
+    h.reported_crashes";
 
 /// The PostGIS-backed store; implements every storage port.
 #[derive(Clone)]
@@ -67,6 +70,10 @@ fn hotspot_from_row(row: &PgRow) -> StoreResult<Hotspot> {
         bearing: Bearing::new(row.try_get("bearing").map_err(read)?),
         created_at: row.try_get("created_at").map_err(read)?,
         flagged_for_review: row.try_get("flagged_for_review").map_err(read)?,
+        source: source_from_code(
+            row.try_get("source").map_err(read)?,
+            row.try_get("reported_crashes").map_err(read)?,
+        ),
     })
 }
 
@@ -177,8 +184,8 @@ impl HotspotRepository for PostgresStore {
 
     async fn insert(&self, hotspot: &Hotspot) -> StoreResult<()> {
         sqlx::query(
-            "INSERT INTO hotspots (id, kind, status, location, bearing, created_at, flagged_for_review) \
-             VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326)::geography, $6, $7, $8)",
+            "INSERT INTO hotspots (id, kind, status, location, bearing, created_at, flagged_for_review, source, \
+             reported_crashes) VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326)::geography, $6, $7, $8, $9, $10)",
         )
         .bind(hotspot.id)
         .bind(kind_code(hotspot.kind))
@@ -188,6 +195,8 @@ impl HotspotRepository for PostgresStore {
         .bind(hotspot.bearing.degrees())
         .bind(hotspot.created_at)
         .bind(hotspot.flagged_for_review)
+        .bind(source_code(hotspot.source).0)
+        .bind(source_code(hotspot.source).1)
         .execute(&self.pool)
         .await
         .map_err(to_store_error)?;
@@ -250,6 +259,39 @@ impl HotspotRepository for PostgresStore {
             .await
             .map_err(to_store_error)?;
         Ok(())
+    }
+
+    async fn replace_city_collision_hotspots(&self, hotspots: &[Hotspot]) -> StoreResult<()> {
+        let mut transaction = self.pool.begin().await.map_err(to_store_error)?;
+        // Votes on the old ones go with them (ON DELETE CASCADE).
+        sqlx::query("DELETE FROM hotspots WHERE source = 'city_collisions'")
+            .execute(&mut *transaction)
+            .await
+            .map_err(to_store_error)?;
+        // One statement for the whole set: row-by-row inserts are slow over a hosted database's network.
+        let column = |pick: fn(&Hotspot) -> String| hotspots.iter().map(pick).collect::<Vec<_>>();
+        sqlx::query(
+            "INSERT INTO hotspots (id, kind, status, location, bearing, created_at, flagged_for_review, source, \
+             reported_crashes) \
+             SELECT id, kind, status, ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography, bearing, \
+                    created_at, false, source, reported_crashes \
+             FROM UNNEST($1::uuid[], $2::text[], $3::text[], $4::float8[], $5::float8[], $6::float8[], \
+                         $7::timestamptz[], $8::text[], $9::int4[]) \
+                  AS h(id, kind, status, latitude, longitude, bearing, created_at, source, reported_crashes)",
+        )
+        .bind(hotspots.iter().map(|h| h.id).collect::<Vec<_>>())
+        .bind(column(|h| kind_code(h.kind).to_owned()))
+        .bind(column(|h| status_code(h.status).to_owned()))
+        .bind(hotspots.iter().map(|h| h.location.latitude).collect::<Vec<_>>())
+        .bind(hotspots.iter().map(|h| h.location.longitude).collect::<Vec<_>>())
+        .bind(hotspots.iter().map(|h| h.bearing.degrees()).collect::<Vec<_>>())
+        .bind(hotspots.iter().map(|h| h.created_at).collect::<Vec<_>>())
+        .bind(column(|h| source_code(h.source).0.to_owned()))
+        .bind(hotspots.iter().map(|h| source_code(h.source).1).collect::<Vec<_>>())
+        .execute(&mut *transaction)
+        .await
+        .map_err(to_store_error)?;
+        transaction.commit().await.map_err(to_store_error)
     }
 }
 

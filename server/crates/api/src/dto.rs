@@ -4,7 +4,7 @@
 use chrono::{DateTime, Utc};
 use roadsense_domain::events::{Event, EventKind, HardBrake, PassOutcome, TracePoint, UsageCounters};
 use roadsense_domain::geo::Coordinate;
-use roadsense_domain::hotspot::{HotspotKind, RouteHotspot};
+use roadsense_domain::hotspot::{HotspotKind, HotspotSource, RouteHotspot};
 use roadsense_domain::metrics::SuccessMetrics;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -61,6 +61,9 @@ pub struct RouteHotspotDto {
     pub bearing: f64,
     pub driver_count: u32,
     pub distance_along_route: f64,
+    /// Crashes the city recorded here, for hotspots from its collision records; `null` for driver-reported ones.
+    #[serde(default)]
+    pub reported_crashes: Option<u32>,
 }
 
 impl From<RouteHotspot> for RouteHotspotDto {
@@ -74,6 +77,10 @@ impl From<RouteHotspot> for RouteHotspotDto {
             bearing: hotspot.bearing.degrees(),
             driver_count: route_hotspot.driver_count,
             distance_along_route: route_hotspot.distance_along_route,
+            reported_crashes: match hotspot.source {
+                HotspotSource::Drivers => None,
+                HotspotSource::CityCollisions { crashes } => Some(crashes),
+            },
         }
     }
 }

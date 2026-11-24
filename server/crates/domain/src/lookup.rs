@@ -24,13 +24,15 @@ impl Default for MergeDistance {
 }
 
 impl RouteLookup {
-    /// Active hotspots on `route` going its way, with enough drivers, merged and sorted by distance along it.
+    /// Active hotspots on `route` going its way, with enough drivers (or from crash records), merged and sorted by distance along it.
     /// O(h × s) for h candidates and s route segments.
     pub fn select(&self, route: &Polyline, candidates: Vec<CountedHotspot>) -> Vec<RouteHotspot> {
         let mut on_route: Vec<RouteHotspot> = candidates
             .into_iter()
             .filter(|counted| {
-                counted.hotspot.status == HotspotStatus::Active && self.consensus.is_met(counted.driver_count)
+                // City collision hotspots stand on the crash records; driver ones need enough votes.
+                counted.hotspot.status == HotspotStatus::Active
+                    && (!counted.hotspot.source.needs_votes() || self.consensus.is_met(counted.driver_count))
             })
             .filter_map(|counted| {
                 let projection = route.project(&counted.hotspot.location);
@@ -121,5 +123,28 @@ mod tests {
         );
         let drivers: Vec<u32> = selected.iter().map(|h| h.driver_count).collect();
         assert_eq!(drivers, vec![12, 5]);
+    }
+
+    #[test]
+    fn city_collision_hotspots_need_no_driver_votes() {
+        let route = north_line(2000.0);
+        let from_crashes = Hotspot::from_collisions(
+            point(600.0, 0.0),
+            Bearing::new(0.0),
+            HotspotKind::SuddenStop,
+            8,
+            Utc::now(),
+        );
+
+        let selected = RouteLookup::default().select(
+            &route,
+            vec![CountedHotspot {
+                hotspot: from_crashes,
+                driver_count: 0,
+            }],
+        );
+
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].driver_count, 0);
     }
 }

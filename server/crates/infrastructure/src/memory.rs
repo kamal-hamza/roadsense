@@ -144,6 +144,20 @@ impl HotspotRepository for MemoryStore {
             .for_each(|h| h.flagged_for_review = true);
         Ok(())
     }
+
+    async fn replace_city_collision_hotspots(&self, hotspots: &[Hotspot]) -> StoreResult<()> {
+        let mut state = self.state();
+        let old: HashSet<Uuid> = state
+            .hotspots
+            .iter()
+            .filter(|h| !h.source.needs_votes())
+            .map(|h| h.id)
+            .collect();
+        state.hotspots.retain(|h| !old.contains(&h.id));
+        state.votes.retain(|(_, hotspot), _| !old.contains(hotspot));
+        state.hotspots.extend_from_slice(hotspots);
+        Ok(())
+    }
 }
 
 #[async_trait]
