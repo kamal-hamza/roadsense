@@ -2,7 +2,7 @@
 //! never go on the wire directly. camelCase keys, ISO-8601 dates.
 
 use chrono::{DateTime, Utc};
-use roadsense_domain::events::{Event, EventKind, HardBrake, PassOutcome, TracePoint, UsageCounters};
+use roadsense_domain::events::{Event, EventKind, HardBrake, PassOutcome, SharpTurn, TracePoint, UsageCounters};
 use roadsense_domain::geo::Coordinate;
 use roadsense_domain::hotspot::{HotspotKind, HotspotSource, RouteHotspot};
 use roadsense_domain::metrics::SuccessMetrics;
@@ -124,6 +124,11 @@ pub enum EventKindDto {
         seconds_since_warning: Option<f64>,
         trace: Vec<TracePointDto>,
     },
+    /// Sent only near a hotspot on the route, as evidence it's a curve.
+    SharpTurn {
+        peak_lateral_acceleration: f64,
+        trace: Vec<TracePointDto>,
+    },
     HotspotPassed {
         hotspot_id: Uuid,
         outcome: PassOutcomeDto,
@@ -171,6 +176,16 @@ pub struct CountersDto {
     pub hotspots_passed: u32,
 }
 
+fn trace_points(trace: Vec<TracePointDto>) -> Vec<TracePoint> {
+    trace
+        .into_iter()
+        .map(|point| TracePoint {
+            location: Coordinate::new(point.latitude, point.longitude),
+            course: point.course,
+        })
+        .collect()
+}
+
 impl From<EventDto> for Event {
     fn from(dto: EventDto) -> Self {
         let kind = match dto.kind {
@@ -191,13 +206,14 @@ impl From<EventDto> for Event {
                 nearest_hotspot_id,
                 was_warned,
                 seconds_since_warning,
-                trace: trace
-                    .into_iter()
-                    .map(|point| TracePoint {
-                        location: Coordinate::new(point.latitude, point.longitude),
-                        course: point.course,
-                    })
-                    .collect(),
+                trace: trace_points(trace),
+            }),
+            EventKindDto::SharpTurn {
+                peak_lateral_acceleration,
+                trace,
+            } => EventKind::SharpTurn(SharpTurn {
+                peak_lateral_acceleration,
+                trace: trace_points(trace),
             }),
             EventKindDto::HotspotPassed {
                 hotspot_id,

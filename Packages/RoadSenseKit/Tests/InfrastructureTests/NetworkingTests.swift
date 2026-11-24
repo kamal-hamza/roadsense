@@ -220,6 +220,11 @@ struct HTTPEventUploaderTests {
             ),
             UploadEvent(id: UUID(), hour: hour, event: .feedback(.notHelpful(hotspotID: hotspot))),
             UploadEvent(id: UUID(), hour: hour, event: .muted),
+            UploadEvent(
+                id: UUID(),
+                hour: hour,
+                event: .sharpTurn(SharpTurnRecord(peakLateralAcceleration: 0.42, trace: brake.trace)),
+            ),
         ]
 
         _ = await HTTPEventUploader(client: client).upload(batch(.events(events)))
@@ -229,13 +234,15 @@ struct HTTPEventUploaderTests {
         let sent = try #require(json["events"] as? [[String: Any]])
         #expect(json["counters"] == nil)
         #expect(json["tripId"] == nil)
-        #expect(sent.map { $0["type"] as? String } == ["hardBrake", "hotspotPassed", "feedback", "muted"])
+        #expect(sent.map { $0["type"] as? String } == ["hardBrake", "hotspotPassed", "feedback", "muted", "sharpTurn"])
         #expect(sent[0]["hour"] as? String == "2027-01-15T08:00:00Z")
         #expect((sent[0]["trace"] as? [[String: Any]])?.first?["latitude"] as? Double == 47.6)
         #expect(sent[1]["outcome"] as? String == "warned")
         #expect(sent[1]["secondsOfWarning"] as? Double == 9)
         #expect(sent[2]["helpful"] as? Bool == false)
         #expect(sent[2]["hotspotId"] as? String == hotspot.uuidString)
+        #expect(sent[4]["peakLateralAcceleration"] as? Double == 0.42)
+        #expect((sent[4]["trace"] as? [[String: Any]])?.count == 1)
     }
 
     @Test func `sends only counters when data sharing is off`() async throws {

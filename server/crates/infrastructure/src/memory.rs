@@ -8,7 +8,7 @@ use chrono::{DateTime, Duration, NaiveDate, Utc};
 use roadsense_application::ports::{DeviceRepository, EventRepository, HealthCheck, HotspotRepository, StoreResult};
 use roadsense_domain::events::{Event, EventKind, PassOutcome, UsageCounters};
 use roadsense_domain::geo::{Coordinate, Polyline};
-use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotStatus};
+use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotKind, HotspotStatus};
 use roadsense_domain::metrics::PassCounts;
 use uuid::Uuid;
 
@@ -18,6 +18,7 @@ struct State {
     activity: HashMap<Uuid, HashSet<NaiveDate>>,
     hotspots: Vec<Hotspot>,
     votes: HashMap<(Uuid, Uuid), DateTime<Utc>>,
+    curve_votes: HashMap<(Uuid, Uuid), DateTime<Utc>>,
     received: HashSet<Uuid>,
     events: Vec<(Uuid, Event)>,
     counters: Vec<(Uuid, UsageCounters)>,
@@ -126,6 +127,35 @@ impl HotspotRepository for MemoryStore {
         Ok(())
     }
 
+    async fn set_kind(&self, hotspot: Uuid, kind: HotspotKind) -> StoreResult<()> {
+        self.state()
+            .hotspots
+            .iter_mut()
+            .filter(|h| h.id == hotspot)
+            .for_each(|h| h.kind = kind);
+        Ok(())
+    }
+
+    async fn record_curve_vote(&self, device: Uuid, hotspot: Uuid, at: DateTime<Utc>) -> StoreResult<()> {
+        let mut state = self.state();
+        let latest = state
+            .curve_votes
+            .get(&(device, hotspot))
+            .map_or(at, |&earlier| earlier.max(at));
+        state.curve_votes.insert((device, hotspot), latest);
+        Ok(())
+    }
+
+    async fn distinct_curve_drivers(&self, hotspot: Uuid, since: DateTime<Utc>) -> StoreResult<u32> {
+        let count = self
+            .state()
+            .curve_votes
+            .iter()
+            .filter(|((_, id), at)| *id == hotspot && **at >= since)
+            .count();
+        Ok(u32::try_from(count).unwrap_or(u32::MAX))
+    }
+
     async fn active_with_driver_counts(&self, since: DateTime<Utc>) -> StoreResult<Vec<CountedHotspot>> {
         let state = self.state();
         Ok(state
@@ -155,6 +185,7 @@ impl HotspotRepository for MemoryStore {
             .collect();
         state.hotspots.retain(|h| !old.contains(&h.id));
         state.votes.retain(|(_, hotspot), _| !old.contains(hotspot));
+        state.curve_votes.retain(|(_, hotspot), _| !old.contains(hotspot));
         state.hotspots.extend_from_slice(hotspots);
         Ok(())
     }

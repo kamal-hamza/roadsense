@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::geo::{Bearing, Coordinate};
 
-/// One GPS fix near a hard brake (no timestamp), so the brake can be placed on a road and direction.
+/// One GPS fix near a hard brake or sharp turn (no timestamp), so the event can be placed on a road and direction.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TracePoint {
     pub location: Coordinate,
@@ -43,6 +43,21 @@ impl HardBrake {
     }
 }
 
+/// A sharp turn the app logged near a hotspot on the route: evidence that the hotspot is a curve.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SharpTurn {
+    /// Peak sideways acceleration in g.
+    pub peak_lateral_acceleration: f64,
+    pub trace: Vec<TracePoint>,
+}
+
+impl SharpTurn {
+    /// The middle fix of the trace, to search for hotspots around.
+    pub fn location(&self) -> Option<Coordinate> {
+        self.trace.get(self.trace.len() / 2).map(|point| point.location)
+    }
+}
+
 /// How a driver went past a hotspot.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PassOutcome {
@@ -61,6 +76,7 @@ impl PassOutcome {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventKind {
     HardBrake(HardBrake),
+    SharpTurn(SharpTurn),
     HotspotPassed {
         hotspot_id: Uuid,
         outcome: PassOutcome,
@@ -108,7 +124,7 @@ pub enum Implausible {
     FromTheFuture,
     #[error("the event is older than the upload queue keeps anything")]
     TooOld,
-    #[error("the hard brake has no GPS trace")]
+    #[error("the hard brake or sharp turn has no GPS trace")]
     NoTrace,
     #[error("a speed or deceleration is beyond what a car can do")]
     ImpossibleMotion,
@@ -123,9 +139,9 @@ pub enum Implausible {
 pub struct Plausibility {
     /// 70 m/s is about 250 km/h.
     pub maximum_speed: f64,
-    /// Over 1.5 g of braking is beyond normal cars and tyres.
+    /// Over 1.5 g of braking or cornering is beyond normal cars and tyres.
     pub maximum_deceleration: f64,
-    /// A few fixes around a brake span at most a few hundred meters.
+    /// A few fixes around a brake or turn span at most a few hundred meters.
     pub maximum_trace_span: f64,
     /// The app drops queued batches after 30 days, so anything older is suspect.
     pub maximum_age: Duration,
@@ -151,19 +167,23 @@ impl Plausibility {
         if event.hour < now - self.maximum_age {
             return Err(Implausible::TooOld);
         }
-        if let EventKind::HardBrake(brake) = &event.kind {
-            self.check_brake(brake)?;
+        match &event.kind {
+            EventKind::HardBrake(brake) => self.check_brake(brake),
+            EventKind::SharpTurn(turn) => self.check_turn(turn),
+            _ => Ok(()),
         }
-        Ok(())
+    }
+
+    fn check_turn(&self, turn: &SharpTurn) -> Result<(), Implausible> {
+        let peak = turn.peak_lateral_acceleration;
+        if !peak.is_finite() || peak < 0.0 || peak > self.maximum_deceleration {
+            return Err(Implausible::ImpossibleMotion);
+        }
+        self.check_trace(&turn.trace)
     }
 
     fn check_brake(&self, brake: &HardBrake) -> Result<(), Implausible> {
-        if brake.trace.is_empty() {
-            return Err(Implausible::NoTrace);
-        }
-        if brake.trace.iter().any(|point| !point.location.is_valid()) {
-            return Err(Implausible::InvalidCoordinate);
-        }
+        self.check_trace(&brake.trace)?;
         let speeds = [brake.speed_before, brake.speed_after].into_iter().flatten();
         if speeds
             .chain([brake.peak_deceleration])
@@ -173,9 +193,18 @@ impl Plausibility {
         {
             return Err(Implausible::ImpossibleMotion);
         }
-        let first = brake.trace[0].location;
-        if brake
-            .trace
+        Ok(())
+    }
+
+    /// A trace must exist, be made of real places, and stay within a small area.
+    fn check_trace(&self, trace: &[TracePoint]) -> Result<(), Implausible> {
+        let Some(first) = trace.first().map(|point| point.location) else {
+            return Err(Implausible::NoTrace);
+        };
+        if trace.iter().any(|point| !point.location.is_valid()) {
+            return Err(Implausible::InvalidCoordinate);
+        }
+        if trace
             .iter()
             .any(|point| point.location.distance_to(&first) > self.maximum_trace_span)
         {
@@ -269,5 +298,27 @@ mod tests {
             rules.check(&event(EventKind::HardBrake(scattered), now), now),
             Err(Implausible::ScatteredTrace)
         );
+    }
+
+    #[test]
+    fn plausibility_checks_sharp_turns_too() {
+        let now = Utc::now();
+        let rules = Plausibility::default();
+        let turn = |peak: f64, trace: Vec<TracePoint>| {
+            event(
+                EventKind::SharpTurn(SharpTurn {
+                    peak_lateral_acceleration: peak,
+                    trace,
+                }),
+                now,
+            )
+        };
+
+        assert_eq!(rules.check(&turn(0.4, trace(&[0.0, 20.0])), now), Ok(()));
+        assert_eq!(
+            rules.check(&turn(3.0, trace(&[0.0, 20.0])), now),
+            Err(Implausible::ImpossibleMotion)
+        );
+        assert_eq!(rules.check(&turn(0.4, vec![]), now), Err(Implausible::NoTrace));
     }
 }

@@ -58,6 +58,7 @@ pub fn source_from_code(code: &str, reported_crashes: Option<i32>) -> HotspotSou
 pub fn event_code(kind: &EventKind) -> &'static str {
     match kind {
         EventKind::HardBrake(_) => "hard_brake",
+        EventKind::SharpTurn(_) => "sharp_turn",
         EventKind::HotspotPassed { .. } => "hotspot_passed",
         EventKind::WarningShown { .. } => "warning_shown",
         EventKind::WarningSuppressed { .. } => "warning_suppressed",

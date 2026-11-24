@@ -310,3 +310,31 @@ async fn road_network_returns_only_drivable_roads_nearby() {
     assert!(!ways[0].is_link);
     drop_schema(&store, &schema).await;
 }
+
+#[tokio::test]
+#[ignore = "needs PostGIS; run with `just server-test-db`"]
+async fn curve_votes_are_one_per_driver_and_kinds_change() {
+    let (store, schema) = store().await;
+    let spot = hotspot(100.0, HotspotStatus::Active);
+    store.insert(&spot).await.unwrap();
+    let (driver, other) = (Uuid::new_v4(), Uuid::new_v4());
+
+    store.record_curve_vote(driver, spot.id, now()).await.unwrap();
+    store.record_curve_vote(driver, spot.id, now()).await.unwrap();
+    store
+        .record_curve_vote(other, spot.id, now() - Duration::days(400))
+        .await
+        .unwrap();
+    store.set_kind(spot.id, HotspotKind::SuddenStop).await.unwrap();
+
+    let recent = store
+        .distinct_curve_drivers(spot.id, now() - Duration::days(365))
+        .await
+        .unwrap();
+    assert_eq!(recent, 1);
+    assert_eq!(
+        store.near(north(100.0), 10.0).await.unwrap()[0].kind,
+        HotspotKind::SuddenStop
+    );
+    drop_schema(&store, &schema).await;
+}

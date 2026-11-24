@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use roadsense_domain::classify::RoadWay;
 use roadsense_domain::events::{Event, UsageCounters};
 use roadsense_domain::geo::{Coordinate, Polyline};
-use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotStatus};
+use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotKind, HotspotStatus};
 use roadsense_domain::metrics::PassCounts;
 use thiserror::Error;
 use uuid::Uuid;
@@ -44,6 +44,10 @@ pub trait HotspotRepository: Send + Sync {
     async fn record_vote(&self, device: Uuid, hotspot: Uuid, at: DateTime<Utc>) -> StoreResult<()>;
     async fn distinct_drivers(&self, hotspot: Uuid, since: DateTime<Utc>) -> StoreResult<u32>;
     async fn set_status(&self, hotspot: Uuid, status: HotspotStatus) -> StoreResult<()>;
+    async fn set_kind(&self, hotspot: Uuid, kind: HotspotKind) -> StoreResult<()>;
+    /// One curve vote per device per hotspot (a sharp turn through it); a repeat only moves the time.
+    async fn record_curve_vote(&self, device: Uuid, hotspot: Uuid, at: DateTime<Utc>) -> StoreResult<()>;
+    async fn distinct_curve_drivers(&self, hotspot: Uuid, since: DateTime<Utc>) -> StoreResult<u32>;
     /// Every active hotspot with its distinct drivers since `since` (for the nightly job).
     async fn active_with_driver_counts(&self, since: DateTime<Utc>) -> StoreResult<Vec<CountedHotspot>>;
     async fn flag_for_review(&self, hotspot: Uuid) -> StoreResult<()>;

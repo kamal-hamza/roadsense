@@ -12,6 +12,8 @@ struct DriveController {
         var arrival = ArrivalDetector.Configuration()
         /// A hard brake farther than this from the route isn't linked to a hotspot on it.
         var brakeLinkCorridor = 30.0
+        /// A sharp turn this close (along the route) to a hotspot on it is sent as evidence the hotspot is a curve.
+        var curveEvidenceDistance = 150.0
         /// GPS fixes kept for hard-brake speeds and traces, in seconds.
         var fixHistory: TimeInterval = 15
     }
@@ -72,8 +74,12 @@ struct DriveController {
         if status == .good, let newFix {
             effects += follow(newFix)
         }
-        for event in events where event.kind == .hardBrake {
-            effects.append(logHardBrake(event))
+        for event in events {
+            switch event.kind {
+            case .hardBrake: effects.append(logHardBrake(event))
+            case .sharpTurn: effects += logSharpTurn(event)
+            case .hardAcceleration, .swerve, .bump: break
+            }
         }
 
         update.gpsStatus = status
@@ -191,15 +197,7 @@ struct DriveController {
         // Speed before: the last fix at least 1.5 s before the peak. After: the latest fix past the peak.
         let before = recentFixes.last { event.timestamp.timeIntervalSince($0.timestamp) >= 1.5 }
         let after = recentFixes.last { $0.timestamp > event.timestamp }
-        // Up to 5 fixes closest in time to the brake, so the backend can match the road and direction.
-        let trace = recentFixes
-            .sorted {
-                abs($0.timestamp.timeIntervalSince(event.timestamp)) <
-                    abs($1.timestamp.timeIntervalSince(event.timestamp))
-            }
-            .prefix(5)
-            .sorted { $0.timestamp < $1.timestamp }
-            .map { TracePoint(coordinate: $0.coordinate, course: $0.course) }
+        let trace = trace(around: event.timestamp)
         let record = HardBrakeRecord(
             course: event.course,
             speedBefore: before?.speed,
@@ -211,5 +209,30 @@ struct DriveController {
             trace: trace,
         )
         return .log(TripLogEntry(timestamp: event.timestamp, coordinate: event.coordinate, event: .hardBrake(record)))
+    }
+
+    /// Logs a sharp turn near a hotspot on the route, as evidence it's a curve. Elsewhere a turn tells the backend
+    /// nothing it uses, so it stays on the phone.
+    private func logSharpTurn(_ event: DrivingEvent) -> [Effect] {
+        guard let coordinate = event.coordinate else { return [] }
+        let projection = tracker.route.projection(of: coordinate)
+        let isNearHotspot = engine.hotspots.contains { hotspot in
+            abs(hotspot.distanceAlongRoute - projection.distanceAlongRoute) <= configuration.curveEvidenceDistance
+        }
+        guard projection.distanceFromRoute <= configuration.brakeLinkCorridor, isNearHotspot else { return [] }
+        let record = SharpTurnRecord(
+            peakLateralAcceleration: event.peakAcceleration,
+            trace: trace(around: event.timestamp),
+        )
+        return [.log(TripLogEntry(timestamp: event.timestamp, coordinate: coordinate, event: .sharpTurn(record)))]
+    }
+
+    /// Up to 5 fixes closest in time to `time`, so the backend can match the road and direction.
+    private func trace(around time: Date) -> [TracePoint] {
+        recentFixes
+            .sorted { abs($0.timestamp.timeIntervalSince(time)) < abs($1.timestamp.timeIntervalSince(time)) }
+            .prefix(5)
+            .sorted { $0.timestamp < $1.timestamp }
+            .map { TracePoint(coordinate: $0.coordinate, course: $0.course) }
     }
 }
