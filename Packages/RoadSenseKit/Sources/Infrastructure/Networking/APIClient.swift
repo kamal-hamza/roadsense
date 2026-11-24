@@ -1,8 +1,10 @@
 import Domain
 import Foundation
+import OSLog
 
 /// Talks JSON to the RoadSense server (API v1). Errors are left to the adapters, which map them to app errors.
 public struct APIClient: Sendable {
+    private static let logger = Logger(subsystem: "com.hkamal.RoadSense", category: "Network")
     public let baseURL: URL
     private let session: URLSession
 
@@ -30,9 +32,16 @@ public struct APIClient: Sendable {
             request.setValue(deviceID.rawValue.uuidString, forHTTPHeaderField: "X-Device-ID")
         }
         request.httpBody = try Self.makeEncoder().encode(body)
-        let (data, response) = try await session.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        return (data, status)
+        let started = ContinuousClock.now
+        do {
+            let (data, response) = try await session.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            Self.logger.info("POST \(path, privacy: .public) -> \(status) in \(started.duration(to: .now), privacy: .public)")
+            return (data, status)
+        } catch {
+            Self.logger.error("POST \(path, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            throw error
+        }
     }
 
     /// Tells the server about this device. Registering again is fine.
