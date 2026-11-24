@@ -7,6 +7,7 @@ public struct TripSummary: Hashable, Sendable {
     public let hardBrakes: Int
     /// Hard brakes linked to a hotspot.
     public let hardBrakesNearHotspots: Int
+    public let sharpTurns: Int
     /// Hotspots the driver was warned about, in order, for the "which warning wasn't useful?" picker.
     public let warnedHotspotIDs: [UUID]
 
@@ -22,6 +23,7 @@ public struct TripSummary: Hashable, Sendable {
         var warnings = 0
         var brakes = 0
         var brakesNearHotspots = 0
+        var turns = 0
         var warnedIDs: [UUID] = []
         for entry in log.entries {
             switch entry.event {
@@ -35,7 +37,9 @@ public struct TripSummary: Hashable, Sendable {
                 if record.nearestHotspotID != nil {
                     brakesNearHotspots += 1
                 }
-            case .sharpTurn, .warningSuppressed, .muted, .unmuted, .feedback:
+            case .sharpTurn:
+                turns += 1
+            case .warningSuppressed, .muted, .unmuted, .feedback:
                 break
             }
         }
@@ -43,6 +47,7 @@ public struct TripSummary: Hashable, Sendable {
         warningsGiven = warnings
         hardBrakes = brakes
         hardBrakesNearHotspots = brakesNearHotspots
+        sharpTurns = turns
         warnedHotspotIDs = warnedIDs
     }
 }

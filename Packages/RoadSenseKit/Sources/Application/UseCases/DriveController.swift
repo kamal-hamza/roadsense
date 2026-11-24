@@ -211,20 +211,23 @@ struct DriveController {
         return .log(TripLogEntry(timestamp: event.timestamp, coordinate: event.coordinate, event: .hardBrake(record)))
     }
 
-    /// Logs a sharp turn near a hotspot on the route, as evidence it's a curve. Elsewhere a turn tells the backend
-    /// nothing it uses, so it stays on the phone.
+    /// Logs a sharp turn for the summary, with the hotspot on the route it was near (if any). Only turns near a
+    /// hotspot are uploaded, as evidence it's a curve; the rest stay on the phone.
     private func logSharpTurn(_ event: DrivingEvent) -> [Effect] {
-        guard let coordinate = event.coordinate else { return [] }
-        let projection = tracker.route.projection(of: coordinate)
-        let isNearHotspot = engine.hotspots.contains { hotspot in
-            abs(hotspot.distanceAlongRoute - projection.distanceAlongRoute) <= configuration.curveEvidenceDistance
+        let nearest = event.coordinate.flatMap { coordinate -> RouteHotspot? in
+            let projection = tracker.route.projection(of: coordinate)
+            guard projection.distanceFromRoute <= configuration.brakeLinkCorridor else { return nil }
+            let gap = { (hotspot: RouteHotspot) in abs(hotspot.distanceAlongRoute - projection.distanceAlongRoute) }
+            return engine.hotspots
+                .filter { gap($0) <= configuration.curveEvidenceDistance }
+                .min { gap($0) < gap($1) }
         }
-        guard projection.distanceFromRoute <= configuration.brakeLinkCorridor, isNearHotspot else { return [] }
         let record = SharpTurnRecord(
             peakLateralAcceleration: event.peakAcceleration,
+            nearestHotspotID: nearest?.id,
             trace: trace(around: event.timestamp),
         )
-        return [.log(TripLogEntry(timestamp: event.timestamp, coordinate: coordinate, event: .sharpTurn(record)))]
+        return [.log(TripLogEntry(timestamp: event.timestamp, coordinate: event.coordinate, event: .sharpTurn(record)))]
     }
 
     /// Up to 5 fixes closest in time to `time`, so the backend can match the road and direction.

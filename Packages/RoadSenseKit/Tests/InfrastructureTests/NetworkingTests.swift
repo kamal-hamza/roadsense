@@ -223,7 +223,11 @@ struct HTTPEventUploaderTests {
             UploadEvent(
                 id: UUID(),
                 hour: hour,
-                event: .sharpTurn(SharpTurnRecord(peakLateralAcceleration: 0.42, trace: brake.trace)),
+                event: .sharpTurn(SharpTurnRecord(
+                    peakLateralAcceleration: 0.42,
+                    nearestHotspotID: hotspot,
+                    trace: brake.trace,
+                )),
             ),
         ]
 

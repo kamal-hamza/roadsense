@@ -69,6 +69,7 @@ struct PrivacyTrimmerTests {
     @Test func `removes trace fixes near the start from a kept sharp turn`() throws {
         let record = SharpTurnRecord(
             peakLateralAcceleration: 0.4,
+            nearestHotspotID: UUID(),
             trace: [180.0, 210, 240].map { TracePoint(coordinate: Fixtures.point($0), course: 0) },
         )
         let entry = TripLogEntry(timestamp: Fixtures.start, coordinate: Fixtures.point(220), event: .sharpTurn(record))
@@ -80,6 +81,17 @@ struct PrivacyTrimmerTests {
             return
         }
         #expect(trimmed.trace.map(\.coordinate) == [Fixtures.point(210), Fixtures.point(240)])
+    }
+
+    @Test func `drops sharp turns that weren't near a hotspot`() throws {
+        let away = SharpTurnRecord(
+            peakLateralAcceleration: 0.4,
+            nearestHotspotID: nil,
+            trace: [TracePoint(coordinate: Fixtures.point(1000), course: 0)],
+        )
+        let entry = TripLogEntry(timestamp: Fixtures.start, coordinate: Fixtures.point(1000), event: .sharpTurn(away))
+
+        #expect(try PrivacyTrimmer().events(from: log([entry])).isEmpty)
     }
 
     @Test func `rounds times down to the hour and gives every event a fresh id`() throws {
