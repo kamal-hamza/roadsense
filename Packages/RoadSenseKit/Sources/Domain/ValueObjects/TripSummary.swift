@@ -35,7 +35,7 @@ public struct TripSummary: Hashable, Sendable {
                 if record.nearestHotspotID != nil {
                     brakesNearHotspots += 1
                 }
-            case .warningSuppressed, .muted, .unmuted, .feedback:
+            case .sharpTurn, .warningSuppressed, .muted, .unmuted, .feedback:
                 break
             }
         }

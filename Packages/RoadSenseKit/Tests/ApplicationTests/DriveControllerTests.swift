@@ -200,6 +200,39 @@ struct DriveControllerTests {
         #expect(controller.update.hardBrakes == 1)
     }
 
+    @Test func `sharp turns are logged only near a hotspot on the route`() throws {
+        var controller = DriveController(plan: plan)
+        var meters = 0.0
+        for second in 0 ... 60 where meters < 820 {
+            let current = Self.fix(at: Self.point(meters), time: Double(second))
+            _ = controller.process(location: current, events: [], at: current.timestamp)
+            meters += 15
+        }
+        let turn = { (at: Double) in
+            DrivingEvent(
+                kind: .sharpTurn,
+                timestamp: Self.start.addingTimeInterval(54),
+                duration: 1.2,
+                peakAcceleration: 0.42,
+                speed: 14,
+                course: 0,
+                coordinate: Self.point(at),
+                confidence: 0.9,
+            )
+        }
+
+        let nearHotspot = controller.process(location: nil, events: [turn(810)], at: Self.start.addingTimeInterval(55))
+        let farFromAny = controller.process(location: nil, events: [turn(300)], at: Self.start.addingTimeInterval(56))
+
+        guard case let .log(entry) = try #require(nearHotspot.first), case let .sharpTurn(record) = entry.event else {
+            Issue.record("Expected a sharp-turn log entry, got \(nearHotspot)")
+            return
+        }
+        #expect(record.peakLateralAcceleration == 0.42)
+        #expect(record.trace.count == 5)
+        #expect(farFromAny.isEmpty)
+    }
+
     @Test func `the banner shows the active warning until its hotspot is passed`() {
         var controller = DriveController(plan: plan)
         var bannerSeen = false

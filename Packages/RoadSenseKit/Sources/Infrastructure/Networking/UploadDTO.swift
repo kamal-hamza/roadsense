@@ -32,6 +32,7 @@ struct EventDTO: Encodable {
     private enum Keys: String, CodingKey {
         case id, hour, type
         case course, speedBefore, speedAfter, peakDeceleration, nearestHotspotId, wasWarned, secondsSinceWarning, trace
+        case peakLateralAcceleration
         case hotspotId, outcome, secondsOfWarning, brakedHard
         case hotspotIds, speed
         case helpful
@@ -41,6 +42,12 @@ struct EventDTO: Encodable {
         let latitude: Double
         let longitude: Double
         let course: Double?
+
+        init(_ point: TracePoint) {
+            latitude = point.coordinate.latitude
+            longitude = point.coordinate.longitude
+            course = point.course
+        }
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -50,6 +57,10 @@ struct EventDTO: Encodable {
         switch upload.event {
         case let .hardBrake(record):
             try encodeHardBrake(record, into: &container)
+        case let .sharpTurn(record):
+            try container.encode("sharpTurn", forKey: .type)
+            try container.encode(record.peakLateralAcceleration, forKey: .peakLateralAcceleration)
+            try container.encode(record.trace.map(TracePointDTO.init), forKey: .trace)
         case let .hotspotPassed(hotspotID, outcome, brakedHard):
             try encodePass(hotspotID: hotspotID, outcome: outcome, brakedHard: brakedHard, into: &container)
         case let .warningShown(hotspotIDs, speed):
@@ -82,10 +93,7 @@ struct EventDTO: Encodable {
         try container.encodeIfPresent(record.nearestHotspotID, forKey: .nearestHotspotId)
         try container.encode(record.wasWarned, forKey: .wasWarned)
         try container.encodeIfPresent(record.secondsSinceWarning, forKey: .secondsSinceWarning)
-        let trace = record.trace.map {
-            TracePointDTO(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude, course: $0.course)
-        }
-        try container.encode(trace, forKey: .trace)
+        try container.encode(record.trace.map(TracePointDTO.init), forKey: .trace)
     }
 
     private func encodePass(

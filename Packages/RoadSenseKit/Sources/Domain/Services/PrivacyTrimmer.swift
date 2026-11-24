@@ -28,7 +28,7 @@ public struct PrivacyTrimmer: Sendable {
             case .warningSuppressed: suppressed += 1
             case .muted: mutes += 1
             case .hotspotPassed: passed += 1
-            case .hardBrake, .unmuted, .feedback: break
+            case .hardBrake, .sharpTurn, .unmuted, .feedback: break
             }
         }
         return UsageCounters(
@@ -46,12 +46,16 @@ public struct PrivacyTrimmer: Sendable {
         // Events with no place (mute, feedback) can't reveal where someone lives.
         guard let coordinate = entry.coordinate else { return entry.event }
         guard !isNearEndpoint(coordinate, of: log) else { return nil }
-        // A brake just outside the radius can still have trace fixes inside it, so drop those too.
-        if case let .hardBrake(record) = entry.event {
-            let trace = record.trace.filter { !isNearEndpoint($0.coordinate, of: log) }
-            return .hardBrake(record.withTrace(trace))
+        // A brake or turn just outside the radius can still have trace fixes inside it, so drop those too.
+        let keep = { (point: TracePoint) in !isNearEndpoint(point.coordinate, of: log) }
+        switch entry.event {
+        case let .hardBrake(record):
+            return .hardBrake(record.withTrace(record.trace.filter(keep)))
+        case let .sharpTurn(record):
+            return .sharpTurn(record.withTrace(record.trace.filter(keep)))
+        default:
+            return entry.event
         }
-        return entry.event
     }
 
     private func isNearEndpoint(_ coordinate: Coordinate, of log: TripLog) -> Bool {
