@@ -26,6 +26,7 @@ struct TripSummaryView: View {
                     value: viewModel.summary.hardBrakesNearHotspots,
                     format: .number,
                 )
+                LabeledContent("Sharp turns", value: viewModel.summary.sharpTurns, format: .number)
             }
             FeedbackSection(viewModel: viewModel)
         }

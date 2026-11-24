@@ -43,6 +43,10 @@ public struct PrivacyTrimmer: Sendable {
 
     /// The event to upload for `entry`, or `nil` if it would reveal the start or end area.
     private func trimmed(_ entry: TripLogEntry, in log: TripLog) -> TripLogEvent? {
+        // A sharp turn away from any hotspot is only for the driver's summary; the backend has no use for it.
+        if case let .sharpTurn(record) = entry.event, record.nearestHotspotID == nil {
+            return nil
+        }
         // Events with no place (mute, feedback) can't reveal where someone lives.
         guard let coordinate = entry.coordinate else { return entry.event }
         guard !isNearEndpoint(coordinate, of: log) else { return nil }
