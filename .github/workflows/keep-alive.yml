@@ -1,0 +1,17 @@
+name: Keep server awake
+
+# Render's free plan sleeps after 15 idle minutes, and Supabase pauses a free project after a week without queries.
+# /health runs a database query, so pinging it keeps both awake.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping /health
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      # A sleeping service can take about a minute to start, so allow for a slow first answer.
+      - run: curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 90 https://roadsense-3dfs.onrender.com/health
