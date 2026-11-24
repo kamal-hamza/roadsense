@@ -110,17 +110,22 @@ struct HTTPHotspotServiceTests {
         let id = UUID()
         StubURLProtocol.script(host: host, [reply(200, """
         {"hotspots":[{"id":"\(id)","kind":"shortMerge","latitude":47.61,"longitude":-122.33,"bearing":2.5,\
-        "driverCount":7,"distanceAlongRoute":812.5}]}
+        "driverCount":7,"distanceAlongRoute":812.5},\
+        {"id":"\(UUID())","kind":"suddenStop","latitude":47.62,"longitude":-122.33,"bearing":0,\
+        "driverCount":0,"distanceAlongRoute":1500,"reportedCrashes":12}]}
         """)])
 
         let hotspots = try await HTTPHotspotService(client: client, deviceIdentity: FixedDevice())
             .hotspots(along: makeRoute())
 
-        #expect(hotspots.count == 1)
+        #expect(hotspots.count == 2)
         #expect(hotspots[0].id == id)
         #expect(hotspots[0].hotspot.kind == .shortMerge)
         #expect(hotspots[0].hotspot.driverCount == 7)
         #expect(hotspots[0].distanceAlongRoute == 812.5)
+        // Driver-reported hotspots carry no crash count; ones from the city's records do.
+        #expect(hotspots[0].hotspot.reportedCrashes == nil)
+        #expect(hotspots[1].hotspot.reportedCrashes == 12)
         let request = try #require(StubURLProtocol.requests(host: host).first)
         #expect(request.url?.path() == "/v1/routes/hotspots")
         #expect(request.value(forHTTPHeaderField: "X-Device-ID") == FixedDevice().id.rawValue.uuidString)

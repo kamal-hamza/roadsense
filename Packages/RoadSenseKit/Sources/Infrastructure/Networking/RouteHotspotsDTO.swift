@@ -31,6 +31,8 @@ struct RouteHotspotDTO: Decodable {
     let bearing: Double
     let driverCount: Int
     let distanceAlongRoute: Double
+    /// Set for hotspots from the city's collision records; missing or `null` for driver-reported ones.
+    let reportedCrashes: Int?
 
     var routeHotspot: RouteHotspot {
         let hotspot = Hotspot(
@@ -39,6 +41,7 @@ struct RouteHotspotDTO: Decodable {
             coordinate: Coordinate(latitude: latitude, longitude: longitude),
             bearing: Bearing(degrees: bearing),
             driverCount: driverCount,
+            reportedCrashes: reportedCrashes,
         )
         return RouteHotspot(hotspot: hotspot, distanceAlongRoute: distanceAlongRoute)
     }
