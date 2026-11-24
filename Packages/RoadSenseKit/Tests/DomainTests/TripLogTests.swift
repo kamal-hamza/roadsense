@@ -63,7 +63,7 @@ struct TripLogTests {
         #expect(decoded == log)
     }
 
-    @Test func `summary counts passes, warnings, and brakes near hotspots`() {
+    @Test func `summary counts passes, warnings, brakes near hotspots, and sharp turns`() {
         let first = UUID()
         let second = UUID()
         var log = TripLog(startedAt: Fixtures.start, startCoordinate: Fixtures.point(0))
@@ -72,6 +72,7 @@ struct TripLogTests {
         log.append(entry(.warningSuppressed(hotspotIDs: [UUID()])))
         log.append(entry(brake(nearHotspot: first)))
         log.append(entry(brake(nearHotspot: nil)))
+        log.append(entry(.sharpTurn(SharpTurnRecord(peakLateralAcceleration: 0.4, nearestHotspotID: nil, trace: []))))
         log.append(entry(.hotspotPassed(hotspotID: first, outcome: .warned(secondsOfWarning: 8), brakedHard: true)))
         log.append(entry(.hotspotPassed(hotspotID: second, outcome: .missed, brakedHard: false)))
 
@@ -81,6 +82,7 @@ struct TripLogTests {
         #expect(summary.warningsGiven == 2)
         #expect(summary.hardBrakes == 2)
         #expect(summary.hardBrakesNearHotspots == 1)
+        #expect(summary.sharpTurns == 1)
         #expect(summary.warnedHotspotIDs == [first, second])
         #expect(summary.asksForFeedback)
     }
