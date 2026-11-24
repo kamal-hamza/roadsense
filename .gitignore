@@ -19,3 +19,6 @@ server/data/
 
 # Local docs (not committed)
 docs/
+
+# Local secrets, e.g. server/.env.supabase with the Supabase DATABASE_URL
+.env*

@@ -28,6 +28,10 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/data
+    environment:
+      # Supabase keeps PostGIS in `extensions`; without it on the path, `geometry` isn't found. Missing schemas
+      # are skipped, so this also works locally (PostGIS in `public`).
+      PGOPTIONS: "-c search_path=roadsense,extensions,public"
     # OSM_DATABASE_URL (set by the recipe) picks the database; the tables go in the app's `roadsense` schema.
     command: ["osm2pgsql", "--create", "--schema", "roadsense", "--database", "${OSM_DATABASE_URL:-postgresql://roadsense:roadsense@db:5432/roadsense}", "/data/roads.osm"]
 
