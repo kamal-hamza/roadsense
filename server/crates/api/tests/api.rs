@@ -154,12 +154,17 @@ async fn the_wire_format_uses_camel_case() {
         "helpful": false, "hotspotId": Uuid::new_v4(),
     });
     let muted = json!({ "id": Uuid::new_v4(), "hour": chrono::Utc::now().to_rfc3339(), "type": "muted" });
+    let turn = json!({
+        "id": Uuid::new_v4(), "hour": chrono::Utc::now().to_rfc3339(), "type": "sharpTurn",
+        "peakLateralAcceleration": 0.42,
+        "trace": [{ "latitude": 47.6062, "longitude": -122.3321, "course": 10.0 }],
+    });
     let (status, _) = send(
         &app,
         "POST",
         "/v1/events",
         Some(device),
-        upload(vec![passed, feedback, muted]),
+        upload(vec![passed, feedback, muted, turn]),
     )
     .await;
     assert_eq!(status, StatusCode::ACCEPTED);

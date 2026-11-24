@@ -9,7 +9,7 @@ use roadsense_application::ports::{
 };
 use roadsense_domain::events::{Event, EventKind, UsageCounters};
 use roadsense_domain::geo::{Bearing, Coordinate, Polyline};
-use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotStatus};
+use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotKind, HotspotStatus};
 use roadsense_domain::metrics::PassCounts;
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::{Executor, Row};
@@ -236,6 +236,41 @@ impl HotspotRepository for PostgresStore {
             .await
             .map_err(to_store_error)?;
         Ok(())
+    }
+
+    async fn set_kind(&self, hotspot: Uuid, kind: HotspotKind) -> StoreResult<()> {
+        sqlx::query("UPDATE hotspots SET kind = $2 WHERE id = $1")
+            .bind(hotspot)
+            .bind(kind_code(kind))
+            .execute(&self.pool)
+            .await
+            .map_err(to_store_error)?;
+        Ok(())
+    }
+
+    async fn record_curve_vote(&self, device: Uuid, hotspot: Uuid, at: DateTime<Utc>) -> StoreResult<()> {
+        sqlx::query(
+            "INSERT INTO curve_votes (device_id, hotspot_id, voted_at) VALUES ($1, $2, $3) \
+             ON CONFLICT (device_id, hotspot_id) DO UPDATE SET voted_at = GREATEST(curve_votes.voted_at, EXCLUDED.voted_at)",
+        )
+        .bind(device)
+        .bind(hotspot)
+        .bind(at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_store_error)?;
+        Ok(())
+    }
+
+    async fn distinct_curve_drivers(&self, hotspot: Uuid, since: DateTime<Utc>) -> StoreResult<u32> {
+        let count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM curve_votes WHERE hotspot_id = $1 AND voted_at >= $2")
+                .bind(hotspot)
+                .bind(since)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(to_store_error)?;
+        Ok(to_u32(count))
     }
 
     async fn active_with_driver_counts(&self, since: DateTime<Utc>) -> StoreResult<Vec<CountedHotspot>> {

@@ -10,6 +10,7 @@ use roadsense_application::use_cases::{
     AcceptUpload, ComputeMetrics, DemoteStaleHotspots, LookupRouteHotspots, ProcessEvents, RegisterDevice,
 };
 use roadsense_domain::classify::{Classifier, RoadWay};
+use roadsense_domain::curves::CurveEvidence;
 use roadsense_domain::events::Plausibility;
 use roadsense_domain::geo::Coordinate;
 use roadsense_domain::lookup::RouteLookup;
@@ -83,6 +84,7 @@ pub fn build_state(storage: Storage, admin_token: Option<String>) -> AppState {
             consensus,
             classifier: Classifier::default(),
             review: FeedbackReview::default(),
+            curves: CurveEvidence::default(),
         }),
         compute_metrics: Arc::new(ComputeMetrics {
             events: storage.events,

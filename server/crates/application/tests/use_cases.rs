@@ -9,7 +9,8 @@ use roadsense_application::ports::*;
 use roadsense_application::use_cases::*;
 use roadsense_domain::classify::{Classifier, RoadWay};
 use roadsense_domain::collisions::{CrashClustering, CrashRecord};
-use roadsense_domain::events::{Event, EventKind, HardBrake, Plausibility, TracePoint, UsageCounters};
+use roadsense_domain::curves::CurveEvidence;
+use roadsense_domain::events::{Event, EventKind, HardBrake, Plausibility, SharpTurn, TracePoint, UsageCounters};
 use roadsense_domain::geo::{Bearing, Coordinate, Polyline};
 use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotKind, HotspotSource, HotspotStatus};
 use roadsense_domain::lookup::RouteLookup;
@@ -60,6 +61,7 @@ impl DeviceRepository for Devices {
 struct Hotspots {
     hotspots: Mutex<Vec<Hotspot>>,
     votes: Mutex<HashMap<(Uuid, Uuid), DateTime<Utc>>>,
+    curve_votes: Mutex<HashMap<(Uuid, Uuid), DateTime<Utc>>>,
 }
 impl Hotspots {
     fn all(&self) -> Vec<Hotspot> {
@@ -118,6 +120,28 @@ impl HotspotRepository for Hotspots {
             .filter(|h| h.id == hotspot)
             .for_each(|h| h.status = status);
         Ok(())
+    }
+    async fn set_kind(&self, hotspot: Uuid, kind: HotspotKind) -> StoreResult<()> {
+        self.hotspots
+            .lock()
+            .unwrap()
+            .iter_mut()
+            .filter(|h| h.id == hotspot)
+            .for_each(|h| h.kind = kind);
+        Ok(())
+    }
+    async fn record_curve_vote(&self, device: Uuid, hotspot: Uuid, at: DateTime<Utc>) -> StoreResult<()> {
+        self.curve_votes.lock().unwrap().insert((device, hotspot), at);
+        Ok(())
+    }
+    async fn distinct_curve_drivers(&self, hotspot: Uuid, since: DateTime<Utc>) -> StoreResult<u32> {
+        Ok(self
+            .curve_votes
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|((_, h), at)| *h == hotspot && **at >= since)
+            .count() as u32)
     }
     async fn active_with_driver_counts(&self, since: DateTime<Utc>) -> StoreResult<Vec<CountedHotspot>> {
         Ok(self
@@ -216,6 +240,7 @@ fn process_events(hotspots: Arc<Hotspots>, events: Arc<Events>, roads: Vec<RoadW
         consensus: Consensus::default(),
         classifier: Classifier::default(),
         review: FeedbackReview::default(),
+        curves: CurveEvidence::default(),
     }
 }
 
@@ -240,6 +265,31 @@ fn hard_brake_at(meters: f64) -> Event {
             seconds_since_warning: None,
             trace,
         }),
+    }
+}
+
+/// A sharp turn through the given fixes, heading north.
+fn sharp_turn_through(fixes: &[Coordinate]) -> Event {
+    Event {
+        id: Uuid::new_v4(),
+        hour: now() - Duration::hours(2),
+        kind: EventKind::SharpTurn(SharpTurn {
+            peak_lateral_acceleration: 0.4,
+            trace: fixes
+                .iter()
+                .map(|&location| TracePoint {
+                    location,
+                    course: Some(0.0),
+                })
+                .collect(),
+        }),
+    }
+}
+
+fn north_road() -> RoadWay {
+    RoadWay {
+        line: Polyline::new(vec![ORIGIN, north(2000.0)]).unwrap(),
+        is_link: false,
     }
 }
 
@@ -285,6 +335,59 @@ async fn one_driver_braking_five_times_is_still_one_vote() {
     }
 
     assert_eq!(hotspots.all()[0].status, HotspotStatus::Candidate);
+}
+
+#[tokio::test]
+async fn five_drivers_cornering_hard_through_a_hotspot_make_it_a_curve() {
+    let hotspots = Arc::new(Hotspots::default());
+    let stop = active_hotspot(500.0);
+    let mut merge = active_hotspot(1500.0);
+    merge.kind = HotspotKind::ShortMerge;
+    hotspots.insert(&stop).await.unwrap();
+    hotspots.insert(&merge).await.unwrap();
+    let process = process_events(hotspots.clone(), Arc::new(Events::default()), vec![north_road()]);
+    let through = |meters: f64| sharp_turn_through(&[north(meters - 20.0), north(meters), north(meters + 20.0)]);
+
+    let mut reports = Vec::new();
+    for _ in 0..5 {
+        let driver = Uuid::new_v4();
+        reports.push(
+            process
+                .execute(driver, vec![through(520.0), through(1500.0)])
+                .await
+                .unwrap(),
+        );
+    }
+
+    let kinds: HashMap<Uuid, HotspotKind> = hotspots.all().into_iter().map(|h| (h.id, h.kind)).collect();
+    assert_eq!(kinds[&stop.id], HotspotKind::SharpCurve);
+    // The ramp is still the hazard there.
+    assert_eq!(kinds[&merge.id], HotspotKind::ShortMerge);
+    assert_eq!(reports.iter().map(|r| r.relabeled_as_curves).sum::<u32>(), 1);
+    assert_eq!(reports[3].relabeled_as_curves, 0, "four drivers aren't enough");
+}
+
+#[tokio::test]
+async fn turning_off_the_road_at_a_junction_is_not_curve_evidence() {
+    let hotspots = Arc::new(Hotspots::default());
+    let stop = active_hotspot(500.0);
+    hotspots.insert(&stop).await.unwrap();
+    let process = process_events(hotspots.clone(), Arc::new(Events::default()), vec![north_road()]);
+    let east = |meters: f64| north(500.0).offset(meters, Bearing::new(90.0));
+    // Up to the hotspot on the road, then away along a street the map line doesn't follow.
+    let right_turn = sharp_turn_through(&[north(480.0), north(500.0), east(40.0), east(80.0)]);
+
+    let mut votes = 0;
+    for _ in 0..5 {
+        votes += process
+            .execute(Uuid::new_v4(), vec![right_turn.clone()])
+            .await
+            .unwrap()
+            .curve_votes;
+    }
+
+    assert_eq!(votes, 0);
+    assert_eq!(hotspots.all()[0].kind, HotspotKind::SuddenStop);
 }
 
 #[tokio::test]

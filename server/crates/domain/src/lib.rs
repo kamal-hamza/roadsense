@@ -3,6 +3,7 @@
 
 pub mod classify;
 pub mod collisions;
+pub mod curves;
 pub mod events;
 pub mod geo;
 pub mod hotspot;
