@@ -7,6 +7,25 @@ use roadsense_domain::geo::{Coordinate, Polyline};
 use sqlx::Row;
 use sqlx::postgres::PgPool;
 
+/// OSM `highway` values for roads cars drive on. Footpaths, cycleways, and service roads (parking aisles,
+/// driveways) would add directions no driver takes.
+const DRIVABLE: &[&str] = &[
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+    "primary",
+    "primary_link",
+    "secondary",
+    "secondary_link",
+    "tertiary",
+    "tertiary_link",
+    "unclassified",
+    "residential",
+    "living_street",
+    "road",
+];
+
 /// Reads roads from osm2pgsql's `planet_osm_line` table. Returns nothing if no map has been imported.
 pub struct PostgresRoadNetwork {
     pool: PgPool,
@@ -18,26 +37,36 @@ impl PostgresRoadNetwork {
     }
 }
 
+impl PostgresRoadNetwork {
+    /// Whether a map has been imported (`just server-import-osm`).
+    pub async fn has_map(&self) -> StoreResult<bool> {
+        sqlx::query_scalar("SELECT to_regclass('planet_osm_line') IS NOT NULL")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|error| StoreError(error.to_string()))
+    }
+}
+
 #[async_trait]
 impl RoadNetwork for PostgresRoadNetwork {
     async fn ways_near(&self, location: Coordinate, radius: f64) -> StoreResult<Vec<RoadWay>> {
-        let has_map: bool = sqlx::query_scalar("SELECT to_regclass('planet_osm_line') IS NOT NULL")
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|error| StoreError(error.to_string()))?;
+        let has_map = self.has_map().await?;
         // No imported map: classification falls back to "sudden stops", which is still a useful warning.
         if !has_map {
             return Ok(Vec::new());
         }
-        // osm2pgsql stores web-mercator (3857) geometry; compare in geography so the radius is in real meters.
+        // osm2pgsql stores web-mercator (3857) geometry. A box in 3857 first (web-mercator meters stretch by
+        // 1/cos(latitude)) lets the spatial index skip far roads; then compare in geography for real meters.
         let rows = sqlx::query(
             "SELECT highway, ST_AsText(ST_Transform(way, 4326)) AS line FROM planet_osm_line \
-             WHERE highway IS NOT NULL \
+             WHERE highway = ANY($4) \
+               AND way && ST_Expand(ST_Transform(ST_SetSRID(ST_MakePoint($1, $2), 4326), 3857), $3 / cos(radians($2))) \
                AND ST_DWithin(ST_Transform(way, 4326)::geography, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3)",
         )
         .bind(location.longitude)
         .bind(location.latitude)
         .bind(radius)
+        .bind(DRIVABLE)
         .fetch_all(&self.pool)
         .await
         .map_err(|error| StoreError(error.to_string()))?;

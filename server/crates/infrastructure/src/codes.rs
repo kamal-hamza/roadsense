@@ -1,7 +1,7 @@
 //! Text codes for enums stored in the database. Keep in sync with the CHECK constraints in migrations/.
 
 use roadsense_domain::events::{EventKind, PassOutcome};
-use roadsense_domain::hotspot::{HotspotKind, HotspotStatus};
+use roadsense_domain::hotspot::{HotspotKind, HotspotSource, HotspotStatus};
 
 pub fn kind_code(kind: HotspotKind) -> &'static str {
     match kind {
@@ -32,6 +32,26 @@ pub fn status_from_code(code: &str) -> HotspotStatus {
         HotspotStatus::Active
     } else {
         HotspotStatus::Candidate
+    }
+}
+
+/// The `source` column, plus the `reported_crashes` column that goes with it.
+pub fn source_code(source: HotspotSource) -> (&'static str, Option<i32>) {
+    match source {
+        HotspotSource::Drivers => ("drivers", None),
+        HotspotSource::CityCollisions { crashes } => {
+            ("city_collisions", Some(i32::try_from(crashes).unwrap_or(i32::MAX)))
+        }
+    }
+}
+
+pub fn source_from_code(code: &str, reported_crashes: Option<i32>) -> HotspotSource {
+    match (code, reported_crashes) {
+        ("city_collisions", Some(crashes)) => HotspotSource::CityCollisions {
+            crashes: u32::try_from(crashes).unwrap_or(0),
+        },
+        // Anything else came from drivers: the default, and the one that still needs votes.
+        _ => HotspotSource::Drivers,
     }
 }
 

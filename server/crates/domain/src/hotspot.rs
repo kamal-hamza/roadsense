@@ -1,4 +1,4 @@
-//! Hotspots: places where many different drivers brake hard, going one way.
+//! Hotspots: places where many different drivers brake hard, or the city recorded many crashes, going one way.
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -20,6 +20,22 @@ pub enum HotspotStatus {
     Active,
 }
 
+/// Where a hotspot came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HotspotSource {
+    /// Hard brakes from RoadSense drivers. Shown once enough different drivers agree.
+    Drivers,
+    /// The city's collision records, with how many crashes were reported there. Shown without driver votes.
+    CityCollisions { crashes: u32 },
+}
+
+impl HotspotSource {
+    /// Whether the hotspot only counts once enough drivers have voted for it.
+    pub fn needs_votes(&self) -> bool {
+        matches!(self, Self::Drivers)
+    }
+}
+
 /// A place and direction of travel where drivers brake hard.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hotspot {
@@ -32,6 +48,7 @@ pub struct Hotspot {
     pub created_at: DateTime<Utc>,
     /// Too many drivers said its warning wasn't helpful; someone should check it (road fixed? bad data?).
     pub flagged_for_review: bool,
+    pub source: HotspotSource,
 }
 
 impl Hotspot {
@@ -45,6 +62,22 @@ impl Hotspot {
             bearing,
             created_at: now,
             flagged_for_review: false,
+            source: HotspotSource::Drivers,
+        }
+    }
+
+    /// An active hotspot from the city's collision records, where `crashes` crashes were reported.
+    pub fn from_collisions(
+        location: Coordinate,
+        bearing: Bearing,
+        kind: HotspotKind,
+        crashes: u32,
+        now: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            status: HotspotStatus::Active,
+            source: HotspotSource::CityCollisions { crashes },
+            ..Self::candidate(location, bearing, kind, now)
         }
     }
 }

@@ -1193,6 +1193,8 @@ dependencies = [
  "chrono",
  "roadsense-application",
  "roadsense-domain",
+ "serde",
+ "serde_json",
  "sqlx",
  "thiserror",
  "tokio",

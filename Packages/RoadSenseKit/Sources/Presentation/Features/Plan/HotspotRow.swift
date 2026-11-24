@@ -1,7 +1,7 @@
 import Domain
 import SwiftUI
 
-/// One hotspot on the route: what it is, how far from the start, and how many drivers flagged it.
+/// One hotspot on the route: what it is, how far from the start, and why it's there (crash records or drivers).
 struct HotspotRow: View {
     let routeHotspot: RouteHotspot
 
@@ -12,7 +12,12 @@ struct HotspotRow: View {
                     .font(.headline)
                 Group {
                     Text("\(distanceFromStart) from start")
-                    Text("Flagged by ^[\(routeHotspot.hotspot.driverCount) driver](inflect: true)")
+                    if let crashes = routeHotspot.hotspot.reportedCrashes {
+                        Text("^[\(crashes) crash](inflect: true) reported here")
+                    }
+                    if routeHotspot.hotspot.driverCount > 0 || routeHotspot.hotspot.reportedCrashes == nil {
+                        Text("Flagged by ^[\(routeHotspot.hotspot.driverCount) driver](inflect: true)")
+                    }
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

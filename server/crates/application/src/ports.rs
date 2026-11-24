@@ -47,6 +47,9 @@ pub trait HotspotRepository: Send + Sync {
     /// Every active hotspot with its distinct drivers since `since` (for the nightly job).
     async fn active_with_driver_counts(&self, since: DateTime<Utc>) -> StoreResult<Vec<CountedHotspot>>;
     async fn flag_for_review(&self, hotspot: Uuid) -> StoreResult<()>;
+    /// Deletes every hotspot from the city's collision records (with their votes) and inserts `hotspots`, as
+    /// one change.
+    async fn replace_city_collision_hotspots(&self, hotspots: &[Hotspot]) -> StoreResult<()>;
 }
 
 /// Uploaded events, kept for de-duplication and the success metrics.

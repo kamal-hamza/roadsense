@@ -8,9 +8,10 @@ use chrono::{DateTime, Duration, Utc};
 use roadsense_application::ports::*;
 use roadsense_application::use_cases::*;
 use roadsense_domain::classify::{Classifier, RoadWay};
+use roadsense_domain::collisions::{CrashClustering, CrashRecord};
 use roadsense_domain::events::{Event, EventKind, HardBrake, Plausibility, TracePoint, UsageCounters};
 use roadsense_domain::geo::{Bearing, Coordinate, Polyline};
-use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotKind, HotspotStatus};
+use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotKind, HotspotSource, HotspotStatus};
 use roadsense_domain::lookup::RouteLookup;
 use roadsense_domain::metrics::PassCounts;
 use roadsense_domain::rules::{Consensus, FeedbackReview, HotspotMatch};
@@ -136,6 +137,13 @@ impl HotspotRepository for Hotspots {
             .iter_mut()
             .filter(|h| h.id == hotspot)
             .for_each(|h| h.flagged_for_review = true);
+        Ok(())
+    }
+
+    async fn replace_city_collision_hotspots(&self, hotspots: &[Hotspot]) -> StoreResult<()> {
+        let mut stored = self.hotspots.lock().unwrap();
+        stored.retain(|h| h.source.needs_votes());
+        stored.extend_from_slice(hotspots);
         Ok(())
     }
 }
@@ -448,8 +456,11 @@ async fn nightly_demotes_active_hotspots_whose_votes_aged_out() {
     let hotspots = Arc::new(Hotspots::default());
     let stale = active_hotspot(500.0);
     let busy = active_hotspot(900.0);
+    // From the city's crash records: no votes, and it should stay that way.
+    let imported = Hotspot::from_collisions(north(1300.0), Bearing::new(0.0), HotspotKind::SuddenStop, 7, now());
     hotspots.insert(&stale).await.unwrap();
     hotspots.insert(&busy).await.unwrap();
+    hotspots.insert(&imported).await.unwrap();
     for _ in 0..5 {
         hotspots
             .record_vote(Uuid::new_v4(), stale.id, now() - Duration::days(400))
@@ -472,6 +483,61 @@ async fn nightly_demotes_active_hotspots_whose_votes_aged_out() {
     let statuses: HashMap<Uuid, HotspotStatus> = hotspots.all().into_iter().map(|h| (h.id, h.status)).collect();
     assert_eq!(statuses[&stale.id], HotspotStatus::Candidate);
     assert_eq!(statuses[&busy.id], HotspotStatus::Active);
+    assert_eq!(statuses[&imported.id], HotspotStatus::Active);
+}
+
+#[tokio::test]
+async fn importing_crashes_replaces_the_last_import_and_keeps_driver_hotspots() {
+    let hotspots = Arc::new(Hotspots::default());
+    let from_drivers = active_hotspot(200.0);
+    let last_import = Hotspot::from_collisions(north(1800.0), Bearing::new(0.0), HotspotKind::SuddenStop, 9, now());
+    hotspots.insert(&from_drivers).await.unwrap();
+    hotspots.insert(&last_import).await.unwrap();
+    let crashes = |at: Coordinate, count: usize| {
+        vec![
+            CrashRecord {
+                location: at,
+                heading: None
+            };
+            count
+        ]
+    };
+    let mut records = crashes(north(500.0), 6);
+    // Too few to count.
+    records.extend(crashes(north(1500.0), 2));
+    // Enough, but nowhere near a road.
+    records.extend(crashes(north(1000.0).offset(300.0, Bearing::new(90.0)), 5));
+    let import = ImportCityCollisions {
+        hotspots: hotspots.clone(),
+        roads: Arc::new(Roads(vec![RoadWay {
+            line: Polyline::new(vec![ORIGIN, north(2000.0)]).unwrap(),
+            is_link: false,
+        }])),
+        clock: Arc::new(FixedClock(now())),
+        clustering: CrashClustering::default(),
+        classifier: Classifier::default(),
+    };
+
+    let report = import.execute(&records).await.unwrap();
+
+    assert_eq!(
+        report,
+        ImportReport {
+            crashes: 13,
+            places: 2,
+            places_without_roads: 1,
+            hotspots: 2,
+        }
+    );
+    let all = hotspots.all();
+    assert!(all.iter().any(|h| h.id == from_drivers.id));
+    assert!(all.iter().all(|h| h.id != last_import.id));
+    // One each way along the road, both active and carrying the crash count.
+    let imported: Vec<&Hotspot> = all.iter().filter(|h| !h.source.needs_votes()).collect();
+    assert_eq!(imported.len(), 2);
+    assert!(imported.iter().all(|h| h.status == HotspotStatus::Active
+        && h.source == HotspotSource::CityCollisions { crashes: 6 }
+        && h.location.distance_to(&north(500.0)) < 1.0));
 }
 
 #[tokio::test]

@@ -28,7 +28,8 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/data
-    command: ["osm2pgsql", "--create", "--database", "postgresql://roadsense:roadsense@db:5432/roadsense", "/data/roads.osm"]
+    # OSM_DATABASE_URL (set by the recipe) picks the database; the tables go in the app's `roadsense` schema.
+    command: ["osm2pgsql", "--create", "--schema", "roadsense", "--database", "${OSM_DATABASE_URL:-postgresql://roadsense:roadsense@db:5432/roadsense}", "/data/roads.osm"]
 
 volumes:
   roadsense-db:

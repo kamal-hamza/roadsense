@@ -2,6 +2,7 @@
 //! See docs/MVP_USE_CASE_1.md §5 for the numbers and the reasoning behind them.
 
 pub mod classify;
+pub mod collisions;
 pub mod events;
 pub mod geo;
 pub mod hotspot;

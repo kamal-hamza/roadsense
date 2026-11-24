@@ -1,6 +1,8 @@
 # HTTP API and composition root (main.rs wires concrete types, like AppContainer).
 [package]
 name = "roadsense-api"
+# The server; the crate also has the `import-collisions` command.
+default-run = "roadsense-api"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true

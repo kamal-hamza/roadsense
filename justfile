@@ -68,12 +68,41 @@ server_db_url := env("DATABASE_URL", "postgres://roadsense:roadsense@localhost:5
 server-db:
     docker compose -f server/compose.yaml up -d --wait
 
-# Import OpenStreetMap roads (default: central Seattle) so new hotspots get a real type (curve / merge).
-# Set OVERPASS_URL to use a mirror if the main Overpass server is busy.
-server-import-osm bbox="47.58,-122.37,47.64,-122.30": server-db
+# Hotspots use the roads for their type (curve / merge) and imported crashes for their directions of travel.
+# DATABASE_URL picks another database, e.g. Supabase (its Session pooler URL). OVERPASS_URL picks an Overpass
+# mirror when the main server is busy, e.g. https://overpass.kumi.systems/api/interpreter.
+# Import OpenStreetMap roads (default: all of Seattle) into the local database or DATABASE_URL
+server-import-osm bbox="47.49,-122.44,47.74,-122.23": server-db
     mkdir -p server/data
-    curl -fsSL -A "RoadSense-dev/0.1 (OSM road import)" "${OVERPASS_URL:-https://overpass-api.de/api/interpreter}" --data-urlencode 'data=[out:xml][timeout:180];(way["highway"]({{ bbox }});>;);out body;' -o server/data/roads.osm
-    docker compose -f server/compose.yaml run --rm osm2pgsql
+    curl -fsSL -A "RoadSense-dev/0.1 (OSM road import)" "${OVERPASS_URL:-https://overpass-api.de/api/interpreter}" --data-urlencode 'data=[out:xml][timeout:300];(way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|road)(_link)?$"]({{ bbox }});>;);out body;' -o server/data/roads.osm
+    # The tables go in the app's `roadsense` schema; locally it may not exist until the server first runs.
+    if [ -z "${DATABASE_URL:-}" ]; then docker compose -f server/compose.yaml exec -T db psql -q -U roadsense -d roadsense -c 'CREATE SCHEMA IF NOT EXISTS roadsense'; fi
+    OSM_DATABASE_URL="${DATABASE_URL:-postgresql://roadsense:roadsense@db:5432/roadsense}" docker compose -f server/compose.yaml run --rm osm2pgsql
+
+# Replaces the last import and leaves driver-reported hotspots alone. Needs a road map in the same database
+# (`just server-import-osm`). DATABASE_URL picks another database, e.g. Supabase.
+# Import Seattle's rear-end crashes since `since` (SDOT open data) as hotspots
+server-import-collisions since="2021-01-01": server-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p server/data
+    url="https://services.arcgis.com/ZOyb2t4B0UYuYNYH/ArcGIS/rest/services/SDOT_Collisions_All_Years_1/FeatureServer/0/query"
+    # The two coding schemes the city has used: newer records fill ST_COLLISIONTYPE, older ones only SDOT_COLDESC.
+    where="INCDATE >= DATE '{{ since }}' AND (ST_COLLISIONTYPE = 'Rear Ended' OR SDOT_COLDESC LIKE '%REAR END%')"
+    # The service returns at most 2,000 records per request, so page through and join the pages.
+    pages=()
+    offset=0
+    while true; do
+        page="server/data/collisions-$offset.geojson"
+        curl -fsS -G "$url" --data-urlencode "where=$where" --data-urlencode "outFields=LOCATION"             --data-urlencode "orderByFields=OBJECTID" --data-urlencode "resultOffset=$offset"             --data-urlencode "resultRecordCount=2000" --data-urlencode "f=geojson" -o "$page"
+        pages+=("$page")
+        [ "$(jq '.features | length' "$page")" -lt 2000 ] && break
+        offset=$((offset + 2000))
+    done
+    jq -s '{type: "FeatureCollection", features: (map(.features) | add)}' "${pages[@]}" > server/data/collisions.geojson
+    rm "${pages[@]}"
+    echo "Downloaded $(jq '.features | length' server/data/collisions.geojson) crashes"
+    cd server && DATABASE_URL="{{ server_db_url }}" cargo run -q -p roadsense-api --bin import-collisions data/collisions.geojson
 
 # Run the API server (uses PostGIS; set ROADSENSE_IN_MEMORY=1 to run without a database). The admin token for
 # /v1/metrics defaults to "dev" locally: curl -H "Authorization: Bearer dev" localhost:8080/v1/metrics

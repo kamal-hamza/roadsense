@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use roadsense_application::ports::{DeviceRepository, EventRepository, HotspotRepository, RoadNetwork};
 use roadsense_domain::events::{Event, EventKind, PassOutcome, UsageCounters};
 use roadsense_domain::geo::{Bearing, Coordinate, Polyline};
-use roadsense_domain::hotspot::{Hotspot, HotspotKind, HotspotStatus};
+use roadsense_domain::hotspot::{Hotspot, HotspotKind, HotspotSource, HotspotStatus};
 use roadsense_infrastructure::osm::PostgresRoadNetwork;
 use roadsense_infrastructure::postgres::{PostgresStore, isolated_pool};
 use sqlx::Executor;
@@ -241,5 +241,72 @@ async fn road_network_is_empty_without_an_imported_map() {
     let ways = roads.ways_near(ORIGIN, 150.0).await.unwrap();
 
     assert!(ways.is_empty());
+    drop_schema(&store, &schema).await;
+}
+
+#[tokio::test]
+#[ignore = "needs PostGIS; run with `just server-test-db`"]
+async fn a_collision_import_replaces_the_last_one_and_keeps_driver_hotspots() {
+    let (store, schema) = store().await;
+    let from_drivers = hotspot(100.0, HotspotStatus::Active);
+    store.insert(&from_drivers).await.unwrap();
+    let import = |meters: f64, crashes: u32| {
+        Hotspot::from_collisions(
+            north(meters),
+            Bearing::new(0.0),
+            HotspotKind::SuddenStop,
+            crashes,
+            now(),
+        )
+    };
+    let first = [import(300.0, 6), import(600.0, 9)];
+    let second = [import(900.0, 12)];
+
+    store.replace_city_collision_hotspots(&first).await.unwrap();
+    store.replace_city_collision_hotspots(&second).await.unwrap();
+
+    let mut found = store.near(north(500.0), 1000.0).await.unwrap();
+    found.sort_by_key(|h| h.location.latitude.to_bits());
+    assert_eq!(found.len(), 2);
+    assert_eq!(found[0].id, from_drivers.id);
+    assert_eq!(found[0].source, HotspotSource::Drivers);
+    assert_eq!(found[1], second[0]);
+    assert_eq!(found[1].source, HotspotSource::CityCollisions { crashes: 12 });
+    drop_schema(&store, &schema).await;
+}
+
+#[tokio::test]
+#[ignore = "needs PostGIS; run with `just server-test-db`"]
+async fn road_network_returns_only_drivable_roads_nearby() {
+    let (store, schema) = store().await;
+    // The shape osm2pgsql creates, with a street and a footpath along it, and a street far away.
+    let line = |from: Coordinate, to: Coordinate| {
+        format!(
+            "ST_Transform(ST_SetSRID(ST_MakeLine(ST_MakePoint({}, {}), ST_MakePoint({}, {})), 4326), 3857)",
+            from.longitude, from.latitude, to.longitude, to.latitude
+        )
+    };
+    let east = |c: Coordinate, meters: f64| c.offset(meters, Bearing::new(90.0));
+    store
+        .pool()
+        .execute(
+            format!(
+                "CREATE TABLE planet_osm_line (highway text, way geometry(LineString, 3857)); \
+                 INSERT INTO planet_osm_line VALUES ('residential', {}), ('footway', {}), ('primary', {});",
+                line(ORIGIN, north(300.0)),
+                line(east(ORIGIN, 5.0), east(north(300.0), 5.0)),
+                line(east(ORIGIN, 2000.0), east(north(300.0), 2000.0)),
+            )
+            .as_str(),
+        )
+        .await
+        .unwrap();
+    let roads = PostgresRoadNetwork::new(store.pool().clone());
+
+    let ways = roads.ways_near(north(150.0), 50.0).await.unwrap();
+
+    assert!(roads.has_map().await.unwrap());
+    assert_eq!(ways.len(), 1);
+    assert!(!ways[0].is_link);
     drop_schema(&store, &schema).await;
 }
