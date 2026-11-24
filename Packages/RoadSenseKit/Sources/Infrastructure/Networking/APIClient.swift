@@ -36,7 +36,8 @@ public struct APIClient: Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            Self.logger.info("POST \(path, privacy: .public) -> \(status) in \(started.duration(to: .now), privacy: .public)")
+            Self.logger
+                .info("POST \(path, privacy: .public) -> \(status) in \(started.duration(to: .now), privacy: .public)")
             return (data, status)
         } catch {
             Self.logger.error("POST \(path, privacy: .public) failed: \(String(describing: error), privacy: .public)")
