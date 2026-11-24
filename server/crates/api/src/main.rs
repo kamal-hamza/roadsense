@@ -8,12 +8,16 @@ use roadsense_api::composition::{Storage, build_state};
 use roadsense_api::{AppState, router};
 use roadsense_infrastructure::osm::PostgresRoadNetwork;
 use roadsense_infrastructure::postgres::PostgresStore;
+use std::io::IsTerminal;
+
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        // Colors only in a terminal; hosted log viewers show the escape codes as junk.
+        .with_ansi(std::io::stdout().is_terminal())
         .init();
 
     let storage = storage().await?;

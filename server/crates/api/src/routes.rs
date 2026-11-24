@@ -1,8 +1,11 @@
 //! HTTP handlers. They translate wire DTOs to domain types, call one use case, and map the result to a status.
 
+use std::time::Instant;
+
 use axum::Router;
-use axum::extract::{Json, State};
+use axum::extract::{Json, Request, State};
 use axum::http::{HeaderMap, StatusCode, header};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use roadsense_application::ports::StoreError;
@@ -26,7 +29,31 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/events", post(upload_events))
         .route("/v1/metrics", get(metrics))
         .route("/v1/admin/demote-stale-hotspots", post(demote_stale_hotspots))
+        .layer(middleware::from_fn(log_request))
         .with_state(state)
+}
+
+/// Logs each request's method, path, status, time taken, and which device sent it.
+async fn log_request(request: Request, next: Next) -> Response {
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
+    // The first block of the device id is enough to tell devices apart in the logs.
+    let device = request
+        .headers()
+        .get(DEVICE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map_or_else(|| "-".to_owned(), |id| id.chars().take(8).collect());
+    let started = Instant::now();
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    let elapsed_ms = started.elapsed().as_millis();
+    // The keep-alive pings /health every few minutes, so keep it out of the default log level.
+    if path == "/health" {
+        tracing::debug!(%method, path, status, elapsed_ms, device, "request");
+    } else {
+        tracing::info!(%method, path, status, elapsed_ms, device, "request");
+    }
+    response
 }
 
 /// An error reply with a short message.

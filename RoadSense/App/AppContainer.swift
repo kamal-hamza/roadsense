@@ -1,6 +1,7 @@
 import Application
 import Foundation
 import Infrastructure
+import OSLog
 import Presentation
 import SensorDevice
 import SensorRecording
@@ -66,8 +67,11 @@ enum AppContainer {
         deviceIdentity: any DeviceIdentityStore,
     ) -> (hotspots: any HotspotService, uploader: any EventUploader) {
         guard let baseURL = apiBaseURL, !isBackendOffline else {
+            Logger(subsystem: "com.hkamal.RoadSense", category: "Network").info("No server configured; using demo data")
             return (DemoHotspotService(isOffline: isBackendOffline), DemoEventUploader(isOffline: isBackendOffline))
         }
+        Logger(subsystem: "com.hkamal.RoadSense", category: "Network")
+            .info("Using the server at \(baseURL.absoluteString, privacy: .public)")
         let client = APIClient(baseURL: baseURL)
         return (HTTPHotspotService(client: client, deviceIdentity: deviceIdentity), HTTPEventUploader(client: client))
     }
