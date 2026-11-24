@@ -104,19 +104,23 @@ enum AppContainer {
 
     /// Real sensors on a phone; a simulated drive in the iOS Simulator, which has no motion sensors.
     private static func makeSensorSource() -> any SensorSource {
-        #if targetEnvironment(simulator)
-            SimulatedSensorSource()
-        #else
-            LiveSensorSource()
-        #endif
+        simulatesDrive ? SimulatedSensorSource() : LiveSensorSource()
     }
 
-    /// Real location on a phone; a fixed spot in the Simulator, which often has no location set.
+    /// Real location on a phone; a fixed spot (downtown Seattle) when the drive is simulated.
     private static func makeLocationServices() -> any LocationServices {
+        simulatesDrive ? SimulatedLocationServices() : LiveLocationServices()
+    }
+
+    /// Always in the Simulator. On a phone, Debug builds launched with `-simulateDrive` drive the planned route
+    /// with a simulated car too, to demo the whole flow without driving.
+    private static var simulatesDrive: Bool {
         #if targetEnvironment(simulator)
-            SimulatedLocationServices()
+            true
+        #elseif DEBUG
+            ProcessInfo.processInfo.arguments.contains("-simulateDrive")
         #else
-            LiveLocationServices()
+            false
         #endif
     }
 }
