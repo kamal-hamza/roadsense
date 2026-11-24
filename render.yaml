@@ -1,0 +1,22 @@
+# Render Blueprint for the RoadSense API (free web service). The database is Supabase, not Render.
+# Set DATABASE_URL to Supabase's *Session pooler* connection string when Render asks for it.
+services:
+  - type: web
+    name: roadsense-api
+    runtime: docker
+    plan: free
+    # Oregon is closest to the Seattle demo area.
+    region: oregon
+    branch: main
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      # Bearer token for /v1/metrics and /v1/admin/*; Render generates a random one.
+      - key: ROADSENSE_ADMIN_TOKEN
+        generateValue: true
+      - key: RUST_LOG
+        value: info

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use roadsense_application::ports::{
-    Clock, DeviceRepository, EventRepository, HotspotRepository, RoadNetwork, StoreResult, SystemClock,
+    Clock, DeviceRepository, EventRepository, HealthCheck, HotspotRepository, RoadNetwork, StoreResult, SystemClock,
 };
 use roadsense_application::use_cases::{
     AcceptUpload, ComputeMetrics, DemoteStaleHotspots, LookupRouteHotspots, ProcessEvents, RegisterDevice,
@@ -25,6 +25,7 @@ pub struct Storage {
     pub hotspots: Arc<dyn HotspotRepository>,
     pub events: Arc<dyn EventRepository>,
     pub roads: Arc<dyn RoadNetwork>,
+    pub health: Arc<dyn HealthCheck>,
 }
 
 impl Storage {
@@ -34,8 +35,9 @@ impl Storage {
         Self {
             devices: memory.clone(),
             hotspots: memory.clone(),
-            events: memory,
+            events: memory.clone(),
             roads: Arc::new(NoRoads),
+            health: memory,
         }
     }
 }
@@ -50,8 +52,8 @@ impl RoadNetwork for NoRoads {
     }
 }
 
-/// Builds every use case with the default rules and the real clock.
-pub fn build_state(storage: Storage) -> AppState {
+/// Builds every use case with the default rules and the real clock. `admin_token` guards the internal endpoints.
+pub fn build_state(storage: Storage, admin_token: Option<String>) -> AppState {
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let consensus = Consensus::default();
     AppState {
@@ -91,5 +93,7 @@ pub fn build_state(storage: Storage) -> AppState {
             consensus,
             clock,
         }),
+        health: storage.health,
+        admin_token: admin_token.filter(|token| !token.is_empty()).map(Into::into),
     }
 }

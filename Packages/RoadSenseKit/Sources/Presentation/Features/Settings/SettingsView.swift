@@ -8,9 +8,16 @@ struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
     @State private var showsRecording = false
 
-    init(recordTrip: RecordTripUseCase, managePreferences: ManagePreferencesUseCase) {
+    init(
+        recordTrip: RecordTripUseCase,
+        managePreferences: ManagePreferencesUseCase,
+        manageServerAddress: ManageServerAddressUseCase,
+    ) {
         self.recordTrip = recordTrip
-        _viewModel = State(initialValue: SettingsViewModel(managePreferences: managePreferences))
+        _viewModel = State(initialValue: SettingsViewModel(
+            managePreferences: managePreferences,
+            manageServerAddress: manageServerAddress,
+        ))
     }
 
     var body: some View {
@@ -37,6 +44,9 @@ struct SettingsView: View {
                     Label("Sensor Recording", systemImage: "waveform.path.ecg")
                 }
             }
+            #if DEBUG
+                ServerAddressSection(viewModel: viewModel)
+            #endif
         }
         .disabled(!viewModel.isLoaded)
         .navigationTitle("Settings")
@@ -66,11 +76,42 @@ struct SettingsView: View {
     }
 }
 
+/// Debug builds only: point the app at a server other than the built-in one, e.g. your Mac over Tailscale.
+private struct ServerAddressSection: View {
+    @Bindable var viewModel: SettingsViewModel
+
+    var body: some View {
+        Section {
+            TextField("https://your-mac.your-tailnet.ts.net", text: $viewModel.serverAddress)
+                .autocorrectionDisabled()
+            #if os(iOS)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+            #endif
+            Button("Save Server Address") {
+                Task { await viewModel.saveServerAddress() }
+            }
+        } header: {
+            Text("Server")
+        } footer: {
+            switch viewModel.serverAddressStatus {
+            case .unchanged:
+                Text("Debug builds only. Leave empty to use the built-in address.")
+            case .saved:
+                Text("Saved. Quit and reopen RoadSense to use it.")
+            case .invalid:
+                Text("Enter a full address, like https://your-mac.your-tailnet.ts.net.")
+            }
+        }
+    }
+}
+
 #Preview {
     NavigationStack {
         SettingsView(
             recordTrip: AppDependencies.preview.recordTrip,
             managePreferences: AppDependencies.preview.managePreferences,
+            manageServerAddress: AppDependencies.preview.manageServerAddress,
         )
     }
 }

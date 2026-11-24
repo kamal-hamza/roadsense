@@ -75,9 +75,28 @@ server-import-osm bbox="47.58,-122.37,47.64,-122.30": server-db
     curl -fsSL -A "RoadSense-dev/0.1 (OSM road import)" "${OVERPASS_URL:-https://overpass-api.de/api/interpreter}" --data-urlencode 'data=[out:xml][timeout:180];(way["highway"]({{ bbox }});>;);out body;' -o server/data/roads.osm
     docker compose -f server/compose.yaml run --rm osm2pgsql
 
-# Run the API server (uses PostGIS; set ROADSENSE_IN_MEMORY=1 to run without a database)
+# Run the API server (uses PostGIS; set ROADSENSE_IN_MEMORY=1 to run without a database). The admin token for
+# /v1/metrics defaults to "dev" locally: curl -H "Authorization: Bearer dev" localhost:8080/v1/metrics
 server-run: server-db
-    cd server && DATABASE_URL="{{ server_db_url }}" cargo run -p roadsense-api
+    cd server && DATABASE_URL="{{ server_db_url }}" ROADSENSE_ADMIN_TOKEN="${ROADSENSE_ADMIN_TOKEN:-dev}" cargo run -p roadsense-api
+
+# Share the running server with your own devices over Tailscale (HTTPS, works on cellular). Needs the
+# Tailscale app signed in, with MagicDNS and HTTPS certificates enabled for your tailnet.
+server-share:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ts="$(command -v tailscale || echo /Applications/Tailscale.app/Contents/MacOS/Tailscale)"
+    "$ts" serve --bg http://localhost:8080
+    host="$("$ts" status --json | python3 -c 'import json, sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
+    echo "Server shared at https://$host"
+    echo "On the phone: Settings > Debug > Server > paste that address > Save, then reopen RoadSense."
+
+# Stop sharing the server over Tailscale
+server-unshare:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ts="$(command -v tailscale || echo /Applications/Tailscale.app/Contents/MacOS/Tailscale)"
+    "$ts" serve reset
 
 # Run the server's unit tests (no database needed)
 server-test:
@@ -86,6 +105,10 @@ server-test:
 # Run the server's PostGIS integration tests (starts the database)
 server-test-db: server-db
     cd server && DATABASE_URL="{{ server_db_url }}" cargo test --workspace --quiet -- --ignored
+
+# Build the server's Docker image (what Render deploys)
+server-docker:
+    docker build -t roadsense-api server
 
 # Check server formatting and lints
 server-lint:

@@ -17,12 +17,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let storage = storage().await?;
-    let state = build_state(storage);
+    let state = build_state(storage, std::env::var("ROADSENSE_ADMIN_TOKEN").ok());
     tokio::spawn(nightly_demotion(state.clone()));
 
-    let address: SocketAddr = std::env::var("BIND_ADDRESS")
-        .unwrap_or_else(|_| "0.0.0.0:8080".into())
-        .parse()?;
+    let address = bind_address()?;
     let listener = tokio::net::TcpListener::bind(address).await?;
     tracing::info!(%address, "RoadSense API listening");
     axum::serve(listener, router(state))
@@ -43,13 +41,30 @@ async fn storage() -> Result<Storage, Box<dyn std::error::Error>> {
     Ok(Storage {
         devices: store.clone(),
         hotspots: store.clone(),
-        events: store,
+        events: store.clone(),
         roads,
+        health: store,
     })
 }
 
-/// Runs the demotion job every day at 03:00 UTC.
+/// BIND_ADDRESS if set; else all interfaces on PORT (what Render and Cloud Run provide); else :8080.
+fn bind_address() -> Result<SocketAddr, Box<dyn std::error::Error>> {
+    if let Ok(address) = std::env::var("BIND_ADDRESS") {
+        return Ok(address.parse()?);
+    }
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|port| port.parse().ok())
+        .unwrap_or(8080);
+    Ok(SocketAddr::from(([0, 0, 0, 0], port)))
+}
+
+/// Runs the demotion once at startup (a free host may have slept through 03:00), then every day at 03:00 UTC.
 async fn nightly_demotion(state: AppState) {
+    match state.demote_stale_hotspots.execute().await {
+        Ok(demoted) => tracing::info!(demoted, "startup demotion finished"),
+        Err(store_error) => tracing::error!(%store_error, "startup demotion failed"),
+    }
     loop {
         let now = Utc::now();
         let three_am = NaiveTime::from_hms_opt(3, 0, 0).unwrap_or_default();

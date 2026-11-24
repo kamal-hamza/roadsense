@@ -46,6 +46,7 @@ enum AppContainer {
                 deviceIdentity: deviceIdentity,
                 preferences: preferences,
             ),
+            manageServerAddress: ManageServerAddressUseCase(store: UserDefaultsServerAddressStore()),
         )
     }
 
@@ -71,11 +72,15 @@ enum AppContainer {
         return (HTTPHotspotService(client: client, deviceIdentity: deviceIdentity), HTTPEventUploader(client: client))
     }
 
-    /// From the ROADSENSE_API_BASE_URL build setting (via Info.plist). `-demoBackend` (debug only) ignores it.
+    /// The server to use. Debug builds: `-demoBackend` means none, then the address saved in Settings or passed as
+    /// `-apiBaseURL`. Otherwise the ROADSENSE_API_BASE_URL build setting (via Info.plist).
     private static var apiBaseURL: URL? {
         #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-demoBackend") {
                 return nil
+            }
+            if let override = UserDefaultsServerAddressStore().current {
+                return override
             }
         #endif
         guard let text = Bundle.main.object(forInfoDictionaryKey: "RSAPIBaseURL") as? String, !text.isEmpty else {

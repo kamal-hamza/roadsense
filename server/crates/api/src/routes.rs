@@ -2,7 +2,7 @@
 
 use axum::Router;
 use axum::extract::{Json, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use roadsense_application::ports::StoreError;
@@ -20,11 +20,12 @@ pub const DEVICE_HEADER: &str = "x-device-id";
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/health", get(|| async { StatusCode::OK }))
+        .route("/health", get(health))
         .route("/v1/devices", post(register_device))
         .route("/v1/routes/hotspots", post(route_hotspots))
         .route("/v1/events", post(upload_events))
         .route("/v1/metrics", get(metrics))
+        .route("/v1/admin/demote-stale-hotspots", post(demote_stale_hotspots))
         .with_state(state)
 }
 
@@ -109,10 +110,51 @@ async fn upload_events(
     }
 }
 
-/// Internal: the success metrics. Put it behind auth or a private network before deploying.
-async fn metrics(State(state): State<AppState>) -> Response {
+/// OK when storage answers. Pinging this also keeps a free hosted database from pausing.
+async fn health(State(state): State<AppState>) -> Response {
+    match state.health.check().await {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(store_error) => store_unavailable(&store_error),
+    }
+}
+
+/// Whether the request carries `Authorization: Bearer <admin token>`. Off (always false) when no token is set.
+fn is_admin(state: &AppState, headers: &HeaderMap) -> bool {
+    let Some(expected) = state.admin_token.as_deref() else {
+        return false;
+    };
+    let given = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .unwrap_or_default();
+    // Compare every byte so the time taken doesn't reveal how much of the token matched.
+    given.len() == expected.len()
+        && given
+            .bytes()
+            .zip(expected.bytes())
+            .fold(0, |diff, (a, b)| diff | (a ^ b))
+            == 0
+}
+
+/// Internal: the success metrics. Needs the admin token.
+async fn metrics(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if !is_admin(&state, &headers) {
+        return error(StatusCode::NOT_FOUND, "not found");
+    }
     match state.compute_metrics.execute().await {
         Ok(metrics) => Json(MetricsResponse::from(metrics)).into_response(),
+        Err(store_error) => store_unavailable(&store_error),
+    }
+}
+
+/// Internal: runs the stale-hotspot demotion now, for a scheduler to call on hosts that sleep. Needs the admin token.
+async fn demote_stale_hotspots(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if !is_admin(&state, &headers) {
+        return error(StatusCode::NOT_FOUND, "not found");
+    }
+    match state.demote_stale_hotspots.execute().await {
+        Ok(demoted) => Json(serde_json::json!({ "demoted": demoted })).into_response(),
         Err(store_error) => store_unavailable(&store_error),
     }
 }

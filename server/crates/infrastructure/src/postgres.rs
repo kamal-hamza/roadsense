@@ -4,7 +4,9 @@ use std::fmt::Write as _;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
-use roadsense_application::ports::{DeviceRepository, EventRepository, HotspotRepository, StoreError, StoreResult};
+use roadsense_application::ports::{
+    DeviceRepository, EventRepository, HealthCheck, HotspotRepository, StoreError, StoreResult,
+};
 use roadsense_domain::events::{Event, EventKind, UsageCounters};
 use roadsense_domain::geo::{Bearing, Coordinate, Polyline};
 use roadsense_domain::hotspot::{CountedHotspot, Hotspot, HotspotStatus};
@@ -29,14 +31,9 @@ pub struct PostgresStore {
 }
 
 impl PostgresStore {
-    /// Connects and brings the schema up to date.
+    /// Connects, keeping RoadSense's tables in the `roadsense` schema, and brings the schema up to date.
     pub async fn connect(url: &str) -> StoreResult<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(10)
-            .connect(url)
-            .await
-            .map_err(to_store_error)?;
-        Self::with_pool(pool).await
+        Self::with_pool(pool_in_schema(url, APP_SCHEMA, 5).await?).await
     }
 
     /// Uses an existing pool (tests pass one scoped to their own schema) and runs migrations.
@@ -95,6 +92,17 @@ fn route_wkt(route: &Polyline) -> String {
 
 fn to_u32(value: i64) -> u32 {
     u32::try_from(value.max(0)).unwrap_or(u32::MAX)
+}
+
+#[async_trait]
+impl HealthCheck for PostgresStore {
+    async fn check(&self) -> StoreResult<()> {
+        sqlx::query("SELECT 1")
+            .execute(&self.pool)
+            .await
+            .map_err(to_store_error)?;
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -387,8 +395,16 @@ impl EventRepository for PostgresStore {
     }
 }
 
+/// Where the app's tables live. Not `public`, which hosted Postgres (Supabase) exposes through its Data API.
+const APP_SCHEMA: &str = "roadsense";
+
 /// Creates a fresh schema and a pool that uses it, so integration tests don't touch each other's data.
 pub async fn isolated_pool(url: &str, schema: &str) -> StoreResult<PgPool> {
+    pool_in_schema(url, schema, 5).await
+}
+
+/// A pool whose connections create and use tables in `schema`, creating the schema first if needed.
+async fn pool_in_schema(url: &str, schema: &str, max_connections: u32) -> StoreResult<PgPool> {
     let admin = PgPoolOptions::new()
         .max_connections(1)
         .connect(url)
@@ -398,10 +414,11 @@ pub async fn isolated_pool(url: &str, schema: &str) -> StoreResult<PgPool> {
         .execute(format!("CREATE SCHEMA IF NOT EXISTS {schema}").as_str())
         .await
         .map_err(to_store_error)?;
-    // PostGIS lives in `public`, so keep it on the search path after the test schema.
-    let search_path = format!("SET search_path TO {schema}, public");
+    admin.close().await;
+    // PostGIS is in `extensions` on Supabase and in `public` locally; keep both on the path (missing ones are skipped).
+    let search_path = format!("SET search_path TO {schema}, extensions, public");
     PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(max_connections)
         .after_connect(move |connection, _| {
             let search_path = search_path.clone();
             Box::pin(async move {

@@ -55,6 +55,35 @@ struct UserDefaultsPreferencesTests {
     }
 }
 
+struct UserDefaultsServerAddressStoreTests {
+    @Test func `saves, reads synchronously and asynchronously, and clears`() async throws {
+        let suite = "UserDefaultsServerAddressStoreTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UserDefaultsServerAddressStore(suiteName: suite)
+        let address = try #require(URL(string: "https://my-mac.tail1234.ts.net"))
+
+        let initial = await store.load()
+        await store.save(address)
+        let saved = UserDefaultsServerAddressStore(suiteName: suite).current
+        await store.save(nil)
+
+        #expect(initial == nil)
+        #expect(saved == address)
+        #expect(await store.load() == nil)
+    }
+
+    @Test func `reads the value a launch argument would set`() throws {
+        let suite = "UserDefaultsServerAddressStoreTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        // `-apiBaseURL https://…` on launch puts the string under this key.
+        defaults.set("https://my-mac.tail1234.ts.net", forKey: "apiBaseURL")
+
+        #expect(UserDefaultsServerAddressStore(suiteName: suite).current?.host() == "my-mac.tail1234.ts.net")
+    }
+}
+
 struct DemoEventUploaderTests {
     @Test func `accepts uploads, or fails when offline`() async {
         let batch = UploadBatch(id: UUID(), deviceID: DeviceID(rawValue: UUID()), createdAt: .now, content: .events([]))
